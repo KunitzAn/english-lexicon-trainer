@@ -1,7 +1,6 @@
 # Копия в .dev.vars — читается `wrangler pages dev` для локального API.
 DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/dbname?sslmode=require"
-SESSION_SECRET="сгенерировать-длинную-случайную-строку"
+SESSION_SECRET="openssl rand -hex 32"
 TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-ALLOWED_TELEGRAM_IDS="11111111,22222222"
 MYMEMORY_EMAIL="you@example.com"
 OPENROUTER_API_KEY=""
