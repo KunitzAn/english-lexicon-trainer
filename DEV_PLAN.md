@@ -53,22 +53,22 @@
 _(Cloudflare Access с входом по одноразовому коду на почту не требует Google-консоли
 и карты — но остаёмся на Telegram по привычке и совместимости с прошлыми проектами.)_
 
-- [ ] Таблица `users(id, telegram_id uniq, name, is_owner, created_at)` + миграция.
-- [ ] Telegram Login Widget на фронте (домен виджета = `vocab.kunitcan.online`).
-- [ ] Функция `/api/auth/telegram`: проверка подписи (HMAC-SHA256 от bot token),
+- [x] Таблица `users(id, telegram_id uniq, name, is_owner, created_at)` + миграция 0001.
+- [x] Telegram Login Widget на фронте (`LoginView.vue`, `VITE_TELEGRAM_BOT_USERNAME`).
+- [x] `/api/auth/telegram`: проверка подписи (HMAC-SHA256 от bot token) на WebCrypto,
       свежесть `auth_date`.
-- [ ] Контроль доступа: ищем `users` по `telegram_id`.
-      - таблица пуста → создаём эту запись как владельца (`is_owner = true`);
-      - запись есть → пускаем;
-      - записи нет, а владелец уже есть → 403.
-- [ ] Сессия: httpOnly + Secure + SameSite cookie с подписанным JWT (HS256,
-      `SESSION_SECRET`), payload несёт внутренний `user_id`, срок 30–90 дней.
-- [ ] Middleware: все `/api/*` кроме `/health` и `/auth/*` требуют валидную сессию;
-      кладёт `user_id` в контекст запроса.
-- [ ] Фронт: guard роутов, экран «войти», экран «доступ не выдан».
+- [x] Контроль доступа: пусто → владелец; есть запись → пускаем; иначе → 403.
+- [x] Сессия: httpOnly + Secure + SameSite=Lax cookie, JWT HS256 (`SESSION_SECRET`),
+      payload с `user_id`, 60 дней.
+- [x] Middleware `functions/api/_middleware.ts` на `/api/*` (кроме `/health`, `/auth/*`),
+      кладёт `userId` в `ctx.data`.
+- [x] `/api/auth/me`, `/api/auth/logout`, защищённый `/api/whoami`.
+- [x] Фронт: guard роутов, экран входа, сообщение «доступ не выдан».
 
-**Готово когда:** без входа API отдаёт 401; первый вход через Telegram создаёт владельца;
-второй незнакомый Telegram-аккаунт получает 403.
+**Готово когда:** ✅ локально (wrangler + Neon): 401 без сессии, первый вход создаёт
+владельца, доступ по куке, 403 незнакомцу, отбой битой подписи, logout.
+Осталось: задать `VITE_TELEGRAM_BOT_USERNAME` в Pages, передеплой, реальный первый
+вход на `vocab.kunitcan.online`.
 
 ---
 

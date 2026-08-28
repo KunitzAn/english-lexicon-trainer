@@ -54,10 +54,16 @@ npm run db:migrate    # применить к БД из DATABASE_URL
 - **Build output directory:** `web/dist`
 - **Root directory:** `/`
 
-Переменные окружения проекта Pages (Production + Preview): `DATABASE_URL`,
-`SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `MYMEMORY_EMAIL`, `OPENROUTER_API_KEY`.
+Переменные окружения проекта Pages (Production + Preview):
+
+- runtime (Functions): `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`,
+  `MYMEMORY_EMAIL`, `OPENROUTER_API_KEY`
+- build-time (Vite): `VITE_TELEGRAM_BOT_USERNAME` — юзернейм бота без `@`
+
 Каталог `functions/` подхватывается автоматически, роуты — `/api/*`.
-Список допущенных пользователей — в таблице `allowed_users` (не env).
+Список допущенных пользователей — в таблице `users` (первый вошедший = владелец), не env.
+Домен виджета Telegram (`/setdomain` в BotFather) = `vocab.kunitcan.online` —
+поэтому кнопка входа не работает с `*.pages.dev` и localhost, только с прод-домена.
 
 Домен: **`vocab.kunitcan.online`** — CNAME на `<pages-проект>.pages.dev`, Proxied.
 Привязывать через Pages → Custom domains (создаст запись сам). Отдельный `api.`
