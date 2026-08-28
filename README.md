@@ -55,7 +55,10 @@ npm run db:migrate    # применить к БД из DATABASE_URL
 - **Root directory:** `/`
 
 Переменные окружения проекта Pages (Production + Preview): `DATABASE_URL`,
-`SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `ALLOWED_TELEGRAM_IDS`, `MYMEMORY_EMAIL`,
-`OPENROUTER_API_KEY`. Каталог `functions/` подхватывается автоматически, роуты — `/api/*`.
+`SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `MYMEMORY_EMAIL`, `OPENROUTER_API_KEY`.
+Каталог `functions/` подхватывается автоматически, роуты — `/api/*`.
+Список допущенных пользователей — в таблице `allowed_users` (не env).
 
-Поддомен приложения вешается на существующий домен (DNS уже на Cloudflare).
+Домен: **`vocab.kunitcan.online`** — CNAME на `<pages-проект>.pages.dev`, Proxied.
+Привязывать через Pages → Custom domains (создаст запись сам). Отдельный `api.`
+не нужен — API живёт на том же домене.
