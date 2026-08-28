@@ -4,6 +4,8 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
+  // .env лежит в корне репо; Vite отдаёт в бандл только VITE_*-переменные.
+  envDir: fileURLToPath(new URL('..', import.meta.url)),
   plugins: [vue()],
   resolve: {
     alias: {
