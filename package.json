@@ -1,0 +1,35 @@
+{
+  "name": "english-lexicon-trainer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite --config web/vite.config.ts",
+    "dev:api": "wrangler pages dev web/dist --port 8788",
+    "build": "vite build --config web/vite.config.ts",
+    "typecheck": "vue-tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p functions/tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.38.3",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "dotenv": "^16.4.7",
+    "drizzle-kit": "^0.30.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vue-tsc": "^2.1.10",
+    "wrangler": "^3.99.0"
+  }
+}
