@@ -53,15 +53,22 @@
 _(Cloudflare Access с входом по одноразовому коду на почту не требует Google-консоли
 и карты — но остаёмся на Telegram по привычке и совместимости с прошлыми проектами.)_
 
-- [ ] Telegram Login Widget на фронте.
-- [ ] Worker: проверка подписи — HMAC-SHA256 от bot token, проверка свежести `auth_date`.
-- [ ] Сверка `id` пользователя с `ALLOWED_TELEGRAM_IDS`.
+- [ ] Таблица `users(id, telegram_id uniq, name, is_owner, created_at)` + миграция.
+- [ ] Telegram Login Widget на фронте (домен виджета = `vocab.kunitcan.online`).
+- [ ] Функция `/api/auth/telegram`: проверка подписи (HMAC-SHA256 от bot token),
+      свежесть `auth_date`.
+- [ ] Контроль доступа: ищем `users` по `telegram_id`.
+      - таблица пуста → создаём эту запись как владельца (`is_owner = true`);
+      - запись есть → пускаем;
+      - записи нет, а владелец уже есть → 403.
 - [ ] Сессия: httpOnly + Secure + SameSite cookie с подписанным JWT (HS256,
-      `SESSION_SECRET`), срок 30–90 дней.
-- [ ] Middleware: все `/api/*` кроме `/health` и `/auth/*` требуют валидную сессию.
-- [ ] Фронт: guard роутов, экран «войти».
+      `SESSION_SECRET`), payload несёт внутренний `user_id`, срок 30–90 дней.
+- [ ] Middleware: все `/api/*` кроме `/health` и `/auth/*` требуют валидную сессию;
+      кладёт `user_id` в контекст запроса.
+- [ ] Фронт: guard роутов, экран «войти», экран «доступ не выдан».
 
-**Готово когда:** без входа API отдаёт 401, после входа — 200; чужой Telegram ID не пускает.
+**Готово когда:** без входа API отдаёт 401; первый вход через Telegram создаёт владельца;
+второй незнакомый Telegram-аккаунт получает 403.
 
 ---
 
@@ -69,16 +76,19 @@ _(Cloudflare Access с входом по одноразовому коду на 
 
 **Схема:**
 
-- [ ] `folders(id, name, created_at)`
-- [ ] `words(id, text, transcription?, is_phrase, source, created_at, deleted_at?)`
-      + уникальный индекс по нормализованному `text` (глобально, слово — одна сущность).
+Всё персональное — привязано к `user_id` (владелец + приглашённые видят только своё).
+Каждый запрос API фильтруется по `user_id` из сессии.
+
+- [ ] `folders(id, user_id, name, created_at)`
+- [ ] `words(id, user_id, text, transcription?, is_phrase, source, created_at, deleted_at?)`
+      + уникальный индекс по (`user_id`, нормализованный `text`).
 - [ ] `word_folders(word_id, folder_id, PRIMARY KEY (word_id, folder_id))` —
-      M:N, одно слово может быть в нескольких темах.
+      M:N; word и folder одного пользователя.
 - [ ] `word_senses(id, word_id, translation, part_of_speech?, definition_en?, example?,
       source, position, created_at, deleted_at?)`
 - [ ] `word_sense_progress(word_sense_id PK, correct_count, incorrect_count, last_trained_at)`
-- [ ] `translation_cache(query PK, response_json, fetched_at)`
-- [ ] Первая миграция, применить к Neon.
+- [ ] `translation_cache(query PK, response_json, fetched_at)` — **общая**, без `user_id`.
+- [ ] Миграция, применить к Neon.
 
 **API:**
 
@@ -113,8 +123,8 @@ _(Cloudflare Access с входом по одноразовому коду на 
 
 **Прогресс:**
 
-- [ ] `attempts(id, client_id UNIQUE, word_sense_id, exercise_id?, exercise_type,
-      is_correct nullable, hint_used, answered_at)`
+- [ ] `attempts(id, user_id, client_id UNIQUE, word_sense_id, exercise_id?,
+      exercise_type, is_correct nullable, hint_used, answered_at)`
 - [ ] Запись попытки: пересчёт `word_sense_progress` из `attempts` (не инкремент).
 - [ ] Функция приоритета (формула `PLAN.md` §3), новые значения → `priority = 0.9`.
 
@@ -151,7 +161,7 @@ _(Cloudflare Access с входом по одноразовому коду на 
       пропусков / вариантов сходится со схемой, `correct` ⊆ допустимых,
       дистракторы ≠ правильному. Провал → регенерация / фоллбек-модель /
       фоллбек на упражнение без LLM.
-- [ ] `exercises(id, type, payload jsonb, target_sense_ids, status reserve|in_use, created_at)`
+- [ ] `exercises(id, user_id, type, payload jsonb, target_sense_ids, status reserve|in_use, created_at)`
 - [ ] Запас 3–5 упражнений; фоновая пред-генерация при наличии квоты.
 - [ ] `quota_usage(date PK, count)` — серверный счётчик, сброс по UTC.
       `generation_log(id, model, ok, error_kind?, created_at)`.
@@ -247,7 +257,11 @@ _(Cloudflare Access с входом по одноразовому коду на 
 ## Закрытые решения
 
 - Слово ↔ темы — **many-to-many** (`word_folders`).
-- Авторизация — **Telegram**, отдельный бот под приложение.
+- Авторизация — **Telegram**, отдельный бот под приложение. Домен: `vocab.kunitcan.online`.
+- Пользователи — **таблица `users`**, первый вход = владелец, дальше по приглашению (не env).
+- Данные — **у каждого пользователя свои** (`user_id` во всех персональных таблицах).
+  Общее: `translation_cache`, квота OpenRouter (`quota_usage`).
 - Несколько устройств — **нужно**; онлайн-режим достаточно (офлайн — после MVP).
 - Перевод — **MyMemory** (без ключа) + ручной ввод; Yandex Dictionary отклонён.
 - Миграция из Me Words — **не делается**.
+- Стек — Vue 3 + Vite, Cloudflare Pages + Pages Functions, Neon + Drizzle, npm.

@@ -246,11 +246,19 @@ priority  = 0.6 * (1 - accuracy) + 0.4 * recency
   - Офлайн-словарь из дампа Wiktionary (kaikki.org / Wiktextract) в таблицу —
     ноль внешних зависимостей, работает офлайн.
 
-### Аутентификация
+### Аутентификация и пользователи
 - **Через Telegram** (Telegram Login Widget / бот) — привычный вариант (было в двух
-  прошлых проектах), один пользователь.
-- Отдельный бот под приложение — чтобы задать домен через BotFather.
-- Без таблицы users и собственной регистрации; ID пользователя сверяется с allowlist.
+  прошлых проектах). Отдельный бот под приложение — чтобы задать домен через BotFather.
+- **Таблица `users`** (telegram_id, name). Доступ контролируемый: первый вошедший
+  становится владельцем; остальные пускаются, только если владелец завёл им строку
+  в `users` (SQL или мелкий admin-экран позже). Не в env.
+- **Данные у каждого пользователя свои** (мультиарендность): `folders`, `words` и
+  вся цепочка привязаны к `user_id`; каждый запрос API фильтруется по текущему
+  пользователю. Сессия несёт внутренний `user_id`.
+- **Общее между пользователями:** `translation_cache` (переводы не персональные) и
+  квота OpenRouter — ключ один на приложение, счётчик `quota_usage` глобальный.
+  Пока владелец + 1–2 человека это приемлемо; при росте — вводить дневной лимит на
+  пользователя.
 
 ### Несколько устройств
 - Нужно: заход с телефона и с ноутбука. В онлайне работает без доп. усилий —
@@ -274,14 +282,16 @@ priority  = 0.6 * (1 - accuracy) + 0.4 * recency
 
 | Таблица | Поля (черновик) |
 |---|---|
-| `folders` | id, name, created_at |
-| `words` | id, text (англ., уникален по нормализованному значению), transcription?, is_phrase, source (`api`/`manual`), created_at, deleted_at? |
-| `word_folders` | word_id, folder_id (M:N — одно слово может быть в нескольких темах) |
+| `users` | id, telegram_id (uniq), name, is_owner, created_at |
+| `folders` | id, user_id, name, created_at |
+| `words` | id, user_id, text (англ.), transcription?, is_phrase, source (`api`/`manual`), created_at, deleted_at?; уникальность по (`user_id`, нормализованный `text`) |
+| `word_folders` | word_id, folder_id (M:N — одно слово в нескольких темах; оба принадлежат одному user) |
 | `word_senses` | id, word_id, translation, part_of_speech?, definition_en?, example?, source (`api`/`manual`), position, deleted_at? |
 | `word_sense_progress` | word_sense_id, correct_count, incorrect_count, last_trained_at |
-| `attempts` | id, client_id (UUID, дедуп синка), word_sense_id, exercise_id?, exercise_type, is_correct (nullable — `null` при подсказке), hint_used, answered_at |
-| `exercises` | id, type, payload (JSON по схеме, включая `glossary`), target_sense_ids, status (`reserve`/`in_use`), created_at |
-| `quota_usage` | date (PK), count |
+| `attempts` | id, user_id, client_id (UUID, дедуп синка), word_sense_id, exercise_id?, exercise_type, is_correct (nullable — `null` при подсказке), hint_used, answered_at |
+| `exercises` | id, user_id, type, payload (JSON по схеме, включая `glossary`), target_sense_ids, status (`reserve`/`in_use`), created_at |
+| `translation_cache` | query (PK), response_json, fetched_at — **общая**, не привязана к user |
+| `quota_usage` | date (PK), count — **общая** (один ключ OpenRouter на приложение) |
 | `generation_log` | id, model, ok, error_kind?, created_at |
 
 Точная схема — подлежит детальной проработке.
@@ -306,8 +316,9 @@ priority  = 0.6 * (1 - accuracy) + 0.4 * recency
 
 | Этап | Содержание |
 |---|---|
-| 0. Инфра | репозиторий, Neon-проект, Cloudflare Pages + Workers, ключ OpenRouter, Telegram-бот |
-| 1. Ядро данных | схема БД (слово M:N темы), CRUD слов/значений/папок, добавление слова через MyMemory + ручной ввод, несколько значений, фразы руками |
+| 0. Инфра | репозиторий, Neon-проект, Cloudflare Pages + Pages Functions, Telegram-бот, деплой каркаса |
+| 0.5. Авторизация | Telegram Login, таблица `users`, первый вход = владелец, session-кука с `user_id` |
+| 1. Ядро данных | схема БД (всё привязано к `user_id`; слово M:N темы), CRUD слов/значений/папок, добавление слова через MyMemory + ручной ввод, несколько значений, фразы руками |
 | 2. Прогресс | attempts (+ `client_id`) + счётчики из пересчёта, выборка набора (ручная + авто по формуле «невыученных») |
 | 3. Генерация | OpenRouter с фоллбеком моделей, батч-генерация набора упражнений, JSON-схемы, валидация, запас упражнений |
 | 4. Упражнения | упражнения без LLM (базовый режим), затем контекстные типы 1–3, затем 4–5; сравнение с эталоном; экран разбора; подсказка-перевод внутри упражнения |
