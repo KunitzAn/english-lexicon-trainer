@@ -12,6 +12,12 @@
 - «Готово когда» — критерий закрытия этапа.
 - Не начинать следующий этап, пока текущий не задеплоен и не проверен вручную на телефоне.
 
+## Статус
+
+- ✅ **Этап 0** — каркас задеплоен, `vocab.kunitcan.online`, `/api/health` → `db_ok`.
+- ✅ **Этап 1** — вход через Telegram работает на проде, владелец создан.
+- ⏭️ **Этап 2** — следующий.
+
 ## Отличие порядка от `PLAN.md` §10
 
 В `PLAN.md`: генерация (этап 3) → упражнения (этап 4).
@@ -20,33 +26,31 @@
 
 ---
 
-## Этап 0. Инфраструктура и каркас
+## Этап 0. Инфраструктура и каркас ✅
 
-**Решения, которые фиксируем здесь:**
+**Зафиксированные решения:**
 
-- [ ] Структура репозитория: моно — `/web` (Vue), `/worker` (API), `/db` (схема + миграции).
-- [ ] ORM / миграции: **Drizzle + drizzle-kit** (совместим с `@neondatabase/serverless`,
-      типизированные запросы) — или голый SQL + раннер. Выбрать.
-- [ ] Формат API: Pages Functions vs отдельный Worker с service binding. Выбрать.
-- [ ] Секреты Worker: `DATABASE_URL`, `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`,
-      `SESSION_SECRET`, `ALLOWED_TELEGRAM_IDS`, `MYMEMORY_EMAIL` (опц.).
+- [x] Монорепо: `web/` (Vue), `functions/` (Pages Functions), `db/` (Drizzle-схема + миграции).
+- [x] ORM / миграции: **Drizzle + drizzle-kit** (драйвер `@neondatabase/serverless`).
+- [x] Формат API: **Pages Functions** (не отдельный Worker).
+- [x] Секреты: `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `MYMEMORY_EMAIL`,
+      `OPENROUTER_API_KEY`; build-var `VITE_TELEGRAM_BOT_USERNAME` (plaintext, не Secret).
 
 **Задачи:**
 
-- [ ] Репозиторий, базовый Vue (Vite), базовый Worker.
-- [ ] Neon: отдельный проект, `DATABASE_URL` (pooled), подключить `@neondatabase/serverless`
-      из Worker, проверить `select 1`.
-- [ ] Cloudflare: Pages для `/web`, Worker для API, поддомен + DNS, CORS Pages↔Worker.
-- [ ] OpenRouter: аккаунт, ключ, тестовый запрос к `:free` модели из Worker.
-- [ ] Telegram: бот через BotFather, `/setdomain` на поддомен.
-- [ ] CI: линт + сборка на пуш (GitHub Actions).
-- [ ] `.env.example`, README с командами запуска.
+- [x] Репозиторий, Vue (Vite, TS), Pages Function `/api/health`.
+- [x] Neon: проект, `DATABASE_URL` (pooled), `@neondatabase/serverless`, `select 1`.
+- [x] Cloudflare: Pages + Functions, домен `vocab.kunitcan.online`.
+- [ ] OpenRouter: аккаунт и ключ — **отложено до этапа 4**.
+- [x] Telegram: бот `@englishlexicontrainer_bot`, `/setdomain` = `vocab.kunitcan.online`.
+- [x] CI: typecheck + build на пуш (GitHub Actions).
+- [x] `.env.example`, `.dev.vars.example`, README.
 
-**Готово когда:** пустой Vue задеплоен на поддомен, `/api/health` отвечает и ходит в Neon.
+**Готово когда:** ✅ каркас задеплоен на `vocab.kunitcan.online`, `/api/health` → `db_ok: true`.
 
 ---
 
-## Этап 1. Аутентификация (Telegram)
+## Этап 1. Аутентификация (Telegram) ✅
 
 Решено: Telegram (как в двух прошлых проектах). Нужен **отдельный бот** под приложение,
 чтобы задать домен через BotFather. Telegram Premium уже есть.
@@ -65,10 +69,9 @@ _(Cloudflare Access с входом по одноразовому коду на 
 - [x] `/api/auth/me`, `/api/auth/logout`, защищённый `/api/whoami`.
 - [x] Фронт: guard роутов, экран входа, сообщение «доступ не выдан».
 
-**Готово когда:** ✅ локально (wrangler + Neon): 401 без сессии, первый вход создаёт
-владельца, доступ по куке, 403 незнакомцу, отбой битой подписи, logout.
-Осталось: задать `VITE_TELEGRAM_BOT_USERNAME` в Pages, передеплой, реальный первый
-вход на `vocab.kunitcan.online`.
+**Готово когда:** ✅ вход через Telegram работает на `vocab.kunitcan.online`, владелец
+создан. Локально проверено: 401 без сессии, первый вход = владелец, доступ по куке,
+403 незнакомцу, отбой битой подписи, logout.
 
 ---
 
