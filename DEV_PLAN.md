@@ -16,7 +16,7 @@
 
 - ✅ **Этап 0** — каркас задеплоен, `vocab.kunitcan.online`, `/api/health` → `db_ok`.
 - ✅ **Этап 1** — вход через Telegram работает на проде, владелец создан.
-- ⏭️ **Этап 2** — следующий.
+- ▶️ **Этап 2** — код готов и проверен локально; осталась проверка на проде.
 
 ## Отличие порядка от `PLAN.md` §10
 
@@ -75,48 +75,45 @@ _(Cloudflare Access с входом по одноразовому коду на 
 
 ---
 
-## Этап 2. Ядро данных: папки, слова, значения
+## Этап 2. Ядро данных: папки, слова, значения ▶️
 
-**Схема:**
+**Схема:** ✅ миграция 0002 применена к Neon.
 
-Всё персональное — привязано к `user_id` (владелец + приглашённые видят только своё).
-Каждый запрос API фильтруется по `user_id` из сессии.
+Всё персональное — привязано к `user_id`. Каждый API-роут фильтруется по `user_id`
+из сессии (`ctx.data.userId`) + helpers `loadFolder/loadWord/loadSense`.
 
-- [ ] `folders(id, user_id, name, created_at)`
-- [ ] `words(id, user_id, text, transcription?, is_phrase, source, created_at, deleted_at?)`
-      + уникальный индекс по (`user_id`, нормализованный `text`).
-- [ ] `word_folders(word_id, folder_id, PRIMARY KEY (word_id, folder_id))` —
-      M:N; word и folder одного пользователя.
-- [ ] `word_senses(id, word_id, translation, part_of_speech?, definition_en?, example?,
-      source, position, created_at, deleted_at?)`
-- [ ] `word_sense_progress(word_sense_id PK, correct_count, incorrect_count, last_trained_at)`
-- [ ] `translation_cache(query PK, response_json, fetched_at)` — **общая**, без `user_id`.
-- [ ] Миграция, применить к Neon.
+- [x] `folders` + `user_id`; `words(user_id, text, text_norm, transcription?, is_phrase,
+      source, deleted_at?)` + partial unique `(user_id, text_norm) WHERE deleted_at IS NULL`.
+- [x] `word_folders(word_id, folder_id)` PK — M:N.
+- [x] `word_senses(word_id, translation, part_of_speech?, definition_en?, example?,
+      source, position, deleted_at?)`.
+- [ ] `word_sense_progress` — переносится в этап 3.
+- [x] `translation_cache(query PK, response_json, fetched_at)` — общая.
 
-**API:**
+**API:** ✅ (локально проверено wrangler + Neon, тестовые данные удалены)
 
-- [ ] CRUD папок.
-- [ ] `POST /api/words` — text, `folder_ids[]` (одна или несколько тем), массив
-      выбранных/введённых значений.
-- [ ] `GET /api/words/lookup?q=` — прокси MyMemory (`langpair=en|ru`, `de=` из конфига),
-      нормализация ответа в список вариантов, запись в `translation_cache`.
-      Недоступен / лимит → пустой список, фронт уходит в ручной ввод.
-- [ ] Дедуп: добавление существующего слова → предложить дописать значение и/или
-      добавить в ещё одну тему.
-- [ ] Нормализация `text`: trim, lower, схлопывание пробелов.
-- [ ] Добавление/удаление слова из темы (правка `word_folders`).
-- [ ] Правка / удаление (soft delete) слова и значения.
-- [ ] Дописывание новых значений к существующему слову.
+- [x] CRUD папок: `GET/POST /api/folders`, `GET/PATCH/DELETE /api/folders/[id]`.
+- [x] `POST /api/words` — text + `folder_ids[]` + `senses[]`; дедуп по `text_norm`:
+      существующее слово → merge (новые значения и темы добавляет, дубли пропускает).
+- [x] `GET /api/words` (+ `?folder=`), `GET/PATCH/DELETE /api/words/[id]` (soft delete).
+- [x] `GET /api/words/lookup?q=` — прокси MyMemory (`en|ru`, `de=`), фильтр мусора,
+      кэш в `translation_cache` (TTL 30 дней); недоступен → `degraded` + пустой список.
+- [x] `POST /api/words/[id]/senses`, `PATCH/DELETE /api/senses/[id]`.
+- [x] `PUT /api/words/[id]/folders` — задаёт набор тем.
+- [x] Нормализация: `cleanText` (trim+пробелы), `normText` (+lower); `is_phrase` = есть пробел.
 
-**Фронт:**
+**Фронт:** ✅ функционально, без стилизации
 
-- [ ] Список папок, содержимое папки.
-- [ ] Экран добавления слова: ввод → варианты MyMemory чекбоксами + поля ручного ввода
-      → выбор одной или нескольких тем → сохранить.
-- [ ] Экран слова: значения, темы, прогресс, кнопки правки.
+- [x] `FoldersView` (темы + создание), `FolderView` (слова темы, переименование, удаление).
+- [x] `AllWordsView`.
+- [x] `AddWordView`: ввод → «найти перевод» → варианты чекбоксами + свои значения +
+      выбор тем → сохранить.
+- [x] `WordView`: правка слова/транскрипции, значения (правка/удаление/добавление), темы.
+- [x] `AppHeader`, guard роутов.
 
-**Готово когда:** с телефона можно создать тему, добавить слово с 2+ значениями
-(через подсказку и руками) сразу в несколько тем, увидеть его в каждой.
+**Готово когда:** ⏳ проверить на `vocab.kunitcan.online` — создать тему, добавить
+слово с 2+ значениями (подсказка + руками) в несколько тем, увидеть в каждой.
+Осталось: `MYMEMORY_EMAIL` в Pages, передеплой, ручная проверка на проде.
 
 ---
 

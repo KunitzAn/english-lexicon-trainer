@@ -15,6 +15,13 @@
       "when": 1787941576626,
       "tag": "0001_hesitant_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787991952787,
+      "tag": "0002_faithful_plazm",
+      "breakpoints": true
     }
   ]
 }
