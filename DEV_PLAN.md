@@ -265,3 +265,5 @@ _(Cloudflare Access с входом по одноразовому коду на 
 - Перевод — **MyMemory** (без ключа) + ручной ввод; Yandex Dictionary отклонён.
 - Миграция из Me Words — **не делается**.
 - Стек — Vue 3 + Vite, Cloudflare Pages + Pages Functions, Neon + Drizzle, npm.
+- `part_of_speech` — убран из UI (колонка в БД осталась дремать). Вернём чипсами
+  в этапе 4, если понадобится для качества генерации упражнений.

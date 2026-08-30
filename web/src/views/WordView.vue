@@ -11,12 +11,14 @@ const id = Number(route.params.id)
 const word = ref<WordDetail | null>(null)
 const folders = ref<FolderRow[]>([])
 const selectedFolders = reactive<Set<number>>(new Set())
+const expandedSenses = reactive<Set<number>>(new Set())
 const error = ref<string | null>(null)
 const loading = ref(true)
 
 const editText = ref('')
 const editTranscription = ref('')
-const newSense = reactive({ translation: '', part_of_speech: '', definition_en: '', example: '' })
+const showNewSense = ref(false)
+const newSense = reactive({ translation: '', definition_en: '', example: '' })
 
 async function load() {
   loading.value = true
@@ -31,6 +33,10 @@ async function load() {
     editTranscription.value = w.word.transcription ?? ''
     selectedFolders.clear()
     for (const fid of w.word.folder_ids) selectedFolders.add(fid)
+    expandedSenses.clear()
+    for (const s of w.word.senses) {
+      if (s.definition_en || s.example) expandedSenses.add(s.id)
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -69,13 +75,17 @@ function toggleFolder(fid: number) {
   else selectedFolders.add(fid)
 }
 
+function toggleSense(sid: number) {
+  if (expandedSenses.has(sid)) expandedSenses.delete(sid)
+  else expandedSenses.add(sid)
+}
+
 async function saveSense(s: SenseRow) {
   try {
     await api(`/senses/${s.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
         translation: s.translation,
-        part_of_speech: s.part_of_speech,
         definition_en: s.definition_en,
         example: s.example,
       }),
@@ -98,9 +108,9 @@ async function addSense() {
     body: JSON.stringify({ ...newSense }),
   })
   newSense.translation = ''
-  newSense.part_of_speech = ''
   newSense.definition_en = ''
   newSense.example = ''
+  showNewSense.value = false
   await load()
 }
 
@@ -115,7 +125,10 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <p><router-link to="/words">← все слова</router-link></p>
+    <div class="row">
+      <router-link to="/words">← все слова</router-link>
+      <router-link to="/words/add">+ новое слово</router-link>
+    </div>
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
@@ -124,7 +137,7 @@ onMounted(load)
         <h2>Слово</h2>
         <input v-model="editText" />
         <input v-model="editTranscription" placeholder="транскрипция" />
-        <p class="muted small" v-if="word.is_phrase">фраза</p>
+        <p v-if="word.is_phrase" class="muted small">фраза</p>
         <button @click="saveWord">сохранить слово</button>
       </section>
 
@@ -132,22 +145,31 @@ onMounted(load)
         <h2>Значения</h2>
         <div v-for="s in word.senses" :key="s.id" class="sense">
           <input v-model="s.translation" placeholder="перевод" />
-          <input v-model="s.part_of_speech" placeholder="часть речи" />
-          <input v-model="s.definition_en" placeholder="определение (EN)" />
-          <input v-model="s.example" placeholder="пример" />
+          <button class="link" @click="toggleSense(s.id)">
+            {{ expandedSenses.has(s.id) ? 'скрыть детали' : 'детали' }}
+          </button>
+          <template v-if="expandedSenses.has(s.id)">
+            <input v-model="s.definition_en" placeholder="определение (EN)" />
+            <input v-model="s.example" placeholder="пример" />
+          </template>
           <div class="row">
             <button class="link" @click="saveSense(s)">сохранить</button>
             <button class="link" @click="deleteSense(s)">удалить</button>
           </div>
         </div>
 
-        <div class="sense">
+        <button v-if="!showNewSense" class="link" @click="showNewSense = true">
+          + добавить значение
+        </button>
+        <div v-else class="sense">
           <strong class="muted small">новое значение</strong>
           <input v-model="newSense.translation" placeholder="перевод" />
-          <input v-model="newSense.part_of_speech" placeholder="часть речи" />
-          <input v-model="newSense.definition_en" placeholder="определение (EN)" />
-          <input v-model="newSense.example" placeholder="пример" />
-          <button class="link" @click="addSense">+ добавить значение</button>
+          <input v-model="newSense.definition_en" placeholder="определение (EN), необяз." />
+          <input v-model="newSense.example" placeholder="пример, необяз." />
+          <div class="row">
+            <button @click="addSense">добавить</button>
+            <button class="link" @click="showNewSense = false">отмена</button>
+          </div>
         </div>
       </section>
 
@@ -176,9 +198,5 @@ onMounted(load)
   gap: 0.25rem;
   padding: 0.5rem 0;
   border-top: 1px solid #23262e;
-}
-.opt {
-  display: block;
-  margin: 0.25rem 0;
 }
 </style>

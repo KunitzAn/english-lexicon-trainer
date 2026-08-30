@@ -40,14 +40,14 @@ export interface LookupResult {
   query: string
   cached: boolean
   degraded?: boolean
+  detail?: string
   variants: LookupVariant[]
 }
 
-/** Черновик значения в форме добавления/редактирования. */
+/** Черновик значения в форме добавления. */
 export interface SenseDraft {
   translation: string
-  part_of_speech: string
   definition_en: string
   example: string
-  source: 'api' | 'manual'
+  expanded: boolean
 }

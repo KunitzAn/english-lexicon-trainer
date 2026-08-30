@@ -27,25 +27,38 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   const hit = cached[0]
   if (hit && Date.now() - hit.fetchedAt.getTime() < CACHE_TTL_MS) {
     const payload = hit.responseJson as { variants: TranslationVariant[] }
+    console.log(`[lookup] "${q}" — из кэша, ${payload.variants?.length ?? 0} вариантов`)
     return json({ query: q, cached: true, variants: payload.variants ?? [] })
   }
 
-  let variants: TranslationVariant[]
-  try {
-    const result = await lookupRu(q, ctx.env.MYMEMORY_EMAIL)
-    variants = result.variants
-  } catch {
-    // MyMemory недоступен — фронт уходит в ручной ввод
-    return json({ query: q, cached: false, variants: [], degraded: true })
+  const outcome = await lookupRu(q, ctx.env.MYMEMORY_EMAIL)
+  console.log(
+    `[lookup] "${q}" — MyMemory: ok=${outcome.ok} http=${outcome.http} ` +
+      `responseStatus=${outcome.responseStatus} email=${outcome.usedEmail} ` +
+      `count=${outcome.variants.length} :: ${outcome.detail}`,
+  )
+
+  if (!outcome.ok) {
+    return json({
+      query: q,
+      cached: false,
+      variants: outcome.variants,
+      degraded: true,
+      detail: outcome.detail,
+    })
   }
 
   await db
     .insert(translationCache)
-    .values({ query: key, responseJson: { variants }, fetchedAt: new Date() })
+    .values({
+      query: key,
+      responseJson: { variants: outcome.variants },
+      fetchedAt: new Date(),
+    })
     .onConflictDoUpdate({
       target: translationCache.query,
-      set: { responseJson: { variants }, fetchedAt: new Date() },
+      set: { responseJson: { variants: outcome.variants }, fetchedAt: new Date() },
     })
 
-  return json({ query: q, cached: false, variants })
+  return json({ query: q, cached: false, variants: outcome.variants })
 }

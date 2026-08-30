@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { FolderRow, LookupResult, LookupVariant, SenseDraft } from '@/lib/types'
@@ -8,6 +8,7 @@ const route = useRoute()
 const router = useRouter()
 
 const text = ref('')
+const wordInput = ref<HTMLInputElement | null>(null)
 const folders = ref<FolderRow[]>([])
 const selectedFolders = reactive<Set<number>>(new Set())
 
@@ -17,6 +18,7 @@ const lookupState = ref<'idle' | 'loading' | 'done' | 'degraded'>('idle')
 
 const manual = ref<SenseDraft[]>([])
 const error = ref<string | null>(null)
+const lastAdded = ref<string | null>(null)
 const saving = ref(false)
 
 onMounted(async () => {
@@ -26,6 +28,10 @@ onMounted(async () => {
   if (Number.isInteger(pre)) selectedFolders.add(pre)
 })
 
+function addManual() {
+  manual.value.push({ translation: '', definition_en: '', example: '', expanded: false })
+}
+
 async function lookup() {
   const q = text.value.trim()
   if (!q) return
@@ -33,12 +39,21 @@ async function lookup() {
   error.value = null
   try {
     const res = await api<LookupResult>(`/words/lookup?q=${encodeURIComponent(q)}`)
+    console.log('[lookup] ответ:', res)
     variants.value = res.variants
     checkedVariants.clear()
-    lookupState.value = res.degraded ? 'degraded' : 'done'
+    if (res.degraded) {
+      console.warn('[lookup] перевод недоступен:', res.detail)
+      lookupState.value = 'degraded'
+      if (!manual.value.length) addManual()
+    } else {
+      lookupState.value = 'done'
+    }
   } catch (e) {
+    console.error('[lookup] ошибка запроса:', e)
     error.value = e instanceof Error ? e.message : String(e)
     lookupState.value = 'degraded'
+    if (!manual.value.length) addManual()
   }
 }
 
@@ -52,18 +67,8 @@ function toggleFolder(id: number) {
   else selectedFolders.add(id)
 }
 
-function addManual() {
-  manual.value.push({
-    translation: '',
-    part_of_speech: '',
-    definition_en: '',
-    example: '',
-    source: 'manual',
-  })
-}
-
-async function save() {
-  const senses = [
+function buildSenses() {
+  return [
     ...[...checkedVariants].map((translation) => ({
       translation,
       source: 'api' as const,
@@ -72,18 +77,30 @@ async function save() {
       .filter((m) => m.translation.trim())
       .map((m) => ({
         translation: m.translation.trim(),
-        part_of_speech: m.part_of_speech.trim() || undefined,
         definition_en: m.definition_en.trim() || undefined,
         example: m.example.trim() || undefined,
         source: 'manual' as const,
       })),
   ]
+}
+
+function resetForm() {
+  text.value = ''
+  variants.value = []
+  checkedVariants.clear()
+  manual.value = []
+  lookupState.value = 'idle'
+  nextTick(() => wordInput.value?.focus())
+}
+
+async function save(again: boolean) {
+  const senses = buildSenses()
   if (!text.value.trim()) {
     error.value = 'введите слово'
     return
   }
   if (!senses.length) {
-    error.value = 'отметьте хотя бы один перевод или добавьте вручную'
+    error.value = 'отметьте перевод или впишите свой'
     return
   }
   saving.value = true
@@ -100,7 +117,12 @@ async function save() {
         }),
       },
     )
-    router.push(`/words/${res.word_id}`)
+    if (again) {
+      lastAdded.value = text.value.trim()
+      resetForm()
+    } else {
+      router.push(`/words/${res.word_id}`)
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -113,9 +135,10 @@ async function save() {
   <main class="page">
     <p><router-link to="/">← темы</router-link></p>
     <h1>Новое слово</h1>
+    <p v-if="lastAdded" class="muted small">добавлено: {{ lastAdded }}</p>
 
     <form class="add" @submit.prevent="lookup">
-      <input v-model="text" placeholder="английское слово или фраза" />
+      <input ref="wordInput" v-model="text" placeholder="английское слово или фраза" />
       <button type="submit" :disabled="lookupState === 'loading' || !text.trim()">
         найти перевод
       </button>
@@ -123,7 +146,7 @@ async function save() {
 
     <p v-if="lookupState === 'loading'" class="muted">ищем…</p>
     <p v-if="lookupState === 'degraded'" class="muted">
-      перевод недоступен — введите вручную ниже
+      перевод недоступен — впишите вручную (подробности в консоли браузера)
     </p>
 
     <section v-if="variants.length" class="card">
@@ -145,9 +168,13 @@ async function save() {
       </div>
       <div v-for="(m, i) in manual" :key="i" class="sense-draft">
         <input v-model="m.translation" placeholder="перевод (RU)" />
-        <input v-model="m.part_of_speech" placeholder="часть речи" />
-        <input v-model="m.definition_en" placeholder="определение (EN), необяз." />
-        <input v-model="m.example" placeholder="пример, необяз." />
+        <button class="link" @click="m.expanded = !m.expanded">
+          {{ m.expanded ? 'скрыть детали' : 'определение / пример' }}
+        </button>
+        <template v-if="m.expanded">
+          <input v-model="m.definition_en" placeholder="определение (EN), необяз." />
+          <input v-model="m.example" placeholder="пример, необяз." />
+        </template>
       </div>
       <p v-if="!manual.length" class="muted">нет</p>
     </section>
@@ -166,7 +193,10 @@ async function save() {
     </section>
 
     <p v-if="error" class="err">{{ error }}</p>
-    <button :disabled="saving" @click="save">сохранить</button>
+    <div class="row-btns">
+      <button :disabled="saving" @click="save(false)">сохранить</button>
+      <button :disabled="saving" @click="save(true)">сохранить и ещё</button>
+    </div>
   </main>
 </template>
 
@@ -176,8 +206,8 @@ async function save() {
   gap: 0.25rem;
   margin-bottom: 0.75rem;
 }
-.opt {
-  display: block;
-  margin: 0.25rem 0;
+.row-btns {
+  display: flex;
+  gap: 0.5rem;
 }
 </style>
