@@ -25,7 +25,7 @@ onMounted(() => {
     err.value = null
     try {
       await loginWithTelegram(user)
-      router.push({ name: 'home' })
+      router.push({ name: 'folders' })
     } catch (e) {
       err.value = humanError(e instanceof Error ? e.message : String(e))
     }
