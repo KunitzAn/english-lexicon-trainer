@@ -2,5 +2,4 @@
 DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/dbname?sslmode=require"
 SESSION_SECRET="openssl rand -hex 32"
 TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-MYMEMORY_EMAIL="you@example.com"
 OPENROUTER_API_KEY=""

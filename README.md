@@ -56,9 +56,13 @@ npm run db:migrate    # применить к БД из DATABASE_URL
 
 Переменные окружения проекта Pages (Production + Preview):
 
-- runtime (Functions): `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`,
-  `MYMEMORY_EMAIL`, `OPENROUTER_API_KEY`
-- build-time (Vite): `VITE_TELEGRAM_BOT_USERNAME` — юзернейм бота без `@`
+- runtime (Functions, Secret): `DATABASE_URL`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`,
+  `OPENROUTER_API_KEY` (этап 4)
+- build-time (Vite, plaintext): `VITE_TELEGRAM_BOT_USERNAME` (юзернейм бота без `@`),
+  `VITE_MYMEMORY_EMAIL` (необяз., поднимает лимит MyMemory)
+
+MyMemory дёргается **из браузера** (лимит по IP; из Worker общий IP Cloudflare
+всегда исчерпан). Worker только кэширует результат в `translation_cache`.
 
 Каталог `functions/` подхватывается автоматически, роуты — `/api/*`.
 Список допущенных пользователей — в таблице `users` (первый вошедший = владелец), не env.

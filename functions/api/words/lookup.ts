@@ -2,63 +2,69 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '../../_lib/db'
 import type { AuthedData } from '../../_lib/context'
 import type { Env } from '../../_lib/env'
+import { readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
-import { lookupRu, type TranslationVariant } from '../../_lib/mymemory'
 import { normText } from '../../_lib/normalize'
 import { translationCache } from '../../../db/schema'
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
+interface CachedVariant {
+  translation: string
+  source: 'api'
+}
+
+/** Чтение кэша. MyMemory дёргает браузер (лимит по IP → нельзя из Worker). */
 export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   ctx,
 ) => {
   const q = normText(new URL(ctx.request.url).searchParams.get('q') ?? '')
   if (!q) return error(400, 'q required')
 
-  const key = `en|ru:${q}`
   const db = getDb(ctx.env)
+  const hit = (
+    await db
+      .select()
+      .from(translationCache)
+      .where(eq(translationCache.query, `en|ru:${q}`))
+      .limit(1)
+  )[0]
 
-  const cached = await db
-    .select()
-    .from(translationCache)
-    .where(eq(translationCache.query, key))
-    .limit(1)
-
-  const hit = cached[0]
   if (hit && Date.now() - hit.fetchedAt.getTime() < CACHE_TTL_MS) {
-    const payload = hit.responseJson as { variants: TranslationVariant[] }
-    console.log(`[lookup] "${q}" — из кэша, ${payload.variants?.length ?? 0} вариантов`)
+    const payload = hit.responseJson as { variants: CachedVariant[] }
     return json({ query: q, cached: true, variants: payload.variants ?? [] })
   }
+  return json({ query: q, cached: false, variants: [] })
+}
 
-  const outcome = await lookupRu(q, ctx.env.MYMEMORY_EMAIL)
-  console.log(
-    `[lookup] "${q}" — MyMemory: ok=${outcome.ok} http=${outcome.http} ` +
-      `responseStatus=${outcome.responseStatus} email=${outcome.usedEmail} ` +
-      `count=${outcome.variants.length} :: ${outcome.detail}`,
-  )
+/** Запись кэша: браузер присылает результат MyMemory. */
+export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
+  ctx,
+) => {
+  const body = await readJson<{ q?: unknown; variants?: unknown }>(ctx.request)
+  const q = normText(str(body?.q) ?? '')
+  if (!q) return error(400, 'q required')
 
-  if (!outcome.ok) {
-    return json({
-      query: q,
-      cached: false,
-      variants: outcome.variants,
-      degraded: true,
-      detail: outcome.detail,
-    })
-  }
+  const variants: CachedVariant[] = Array.isArray(body?.variants)
+    ? (body!.variants as unknown[])
+        .map((v) => ({
+          translation: String((v as { translation?: unknown })?.translation ?? '')
+            .trim()
+            .slice(0, 80),
+          source: 'api' as const,
+        }))
+        .filter((v) => v.translation)
+        .slice(0, 12)
+    : []
 
+  const db = getDb(ctx.env)
   await db
     .insert(translationCache)
-    .values({
-      query: key,
-      responseJson: { variants: outcome.variants },
-      fetchedAt: new Date(),
-    })
+    .values({ query: `en|ru:${q}`, responseJson: { variants }, fetchedAt: new Date() })
     .onConflictDoUpdate({
       target: translationCache.query,
-      set: { responseJson: { variants: outcome.variants }, fetchedAt: new Date() },
+      set: { responseJson: { variants }, fetchedAt: new Date() },
     })
 
-  return json({ query: q, cached: false, variants: outcome.variants })
+  return json({ ok: true })
 }

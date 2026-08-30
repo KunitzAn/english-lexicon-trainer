@@ -2,6 +2,7 @@
 import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
+import { fetchMyMemory } from '@/lib/mymemory'
 import type { FolderRow, LookupResult, LookupVariant, SenseDraft } from '@/lib/types'
 
 const route = useRoute()
@@ -32,28 +33,49 @@ function addManual() {
   manual.value.push({ translation: '', definition_en: '', example: '', expanded: false })
 }
 
+function degrade() {
+  variants.value = []
+  lookupState.value = 'degraded'
+  if (!manual.value.length) addManual()
+}
+
 async function lookup() {
   const q = text.value.trim()
   if (!q) return
   lookupState.value = 'loading'
   error.value = null
   try {
-    const res = await api<LookupResult>(`/words/lookup?q=${encodeURIComponent(q)}`)
-    console.log('[lookup] ответ:', res)
-    variants.value = res.variants
-    checkedVariants.clear()
-    if (res.degraded) {
-      console.warn('[lookup] перевод недоступен:', res.detail)
-      lookupState.value = 'degraded'
-      if (!manual.value.length) addManual()
-    } else {
+    // 1. кэш на сервере
+    const cache = await api<LookupResult>(`/words/lookup?q=${encodeURIComponent(q)}`)
+    if (cache.cached && cache.variants.length) {
+      console.log('[lookup] из кэша:', cache.variants)
+      variants.value = cache.variants
+      checkedVariants.clear()
       lookupState.value = 'done'
+      return
     }
+
+    // 2. MyMemory из браузера
+    const mm = await fetchMyMemory(q)
+    console.log('[lookup] MyMemory (клиент):', mm)
+    if (!mm.ok) {
+      console.warn('[lookup] перевод недоступен:', mm.detail)
+      degrade()
+      return
+    }
+    variants.value = mm.variants
+    checkedVariants.clear()
+    lookupState.value = 'done'
+
+    // 3. записать в кэш (не критично)
+    api('/words/lookup', {
+      method: 'POST',
+      body: JSON.stringify({ q, variants: mm.variants }),
+    }).catch(() => {})
   } catch (e) {
-    console.error('[lookup] ошибка запроса:', e)
+    console.error('[lookup] ошибка:', e)
     error.value = e instanceof Error ? e.message : String(e)
-    lookupState.value = 'degraded'
-    if (!manual.value.length) addManual()
+    degrade()
   }
 }
 
