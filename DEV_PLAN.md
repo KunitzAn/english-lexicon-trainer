@@ -96,8 +96,9 @@ _(Cloudflare Access с входом по одноразовому коду на 
 - [x] `POST /api/words` — text + `folder_ids[]` + `senses[]`; дедуп по `text_norm`:
       существующее слово → merge (новые значения и темы добавляет, дубли пропускает).
 - [x] `GET /api/words` (+ `?folder=`), `GET/PATCH/DELETE /api/words/[id]` (soft delete).
-- [x] `GET /api/words/lookup?q=` — прокси MyMemory (`en|ru`, `de=`), фильтр мусора,
-      кэш в `translation_cache` (TTL 30 дней); недоступен → `degraded` + пустой список.
+- [x] Перевод: MyMemory дёргает **браузер** (лимит по IP; из Worker общий IP
+      Cloudflare всегда исчерпан). `GET /api/words/lookup` читает кэш,
+      `POST` пишет; `translation_cache` TTL 30 дней. Нет ответа → ручной ввод.
 - [x] `POST /api/words/[id]/senses`, `PATCH/DELETE /api/senses/[id]`.
 - [x] `PUT /api/words/[id]/folders` — задаёт набор тем.
 - [x] Нормализация: `cleanText` (trim+пробелы), `normText` (+lower); `is_phrase` = есть пробел.
