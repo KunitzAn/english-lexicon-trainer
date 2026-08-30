@@ -10,6 +10,7 @@ export interface WordListItem {
   transcription: string | null
   is_phrase: boolean
   translations: string[]
+  folder_ids?: number[]
 }
 
 export interface SenseRow {

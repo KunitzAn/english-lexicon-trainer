@@ -5,6 +5,7 @@ import type { Env } from '../../_lib/env'
 import { loadSense } from '../../_lib/guard'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
+import { normTranslation } from '../../_lib/normalize'
 import { wordSenses } from '../../../db/schema'
 
 export const onRequestPatch: PagesFunction<Env, string, AuthedData> = async (
@@ -21,7 +22,7 @@ export const onRequestPatch: PagesFunction<Env, string, AuthedData> = async (
   if (body && 'translation' in body) {
     const t = str(body.translation)
     if (!t) return error(400, 'translation cannot be empty')
-    patch.translation = t
+    patch.translation = normTranslation(t)
   }
   if (body && 'part_of_speech' in body) patch.partOfSpeech = str(body.part_of_speech)
   if (body && 'definition_en' in body) patch.definitionEn = str(body.definition_en)

@@ -5,6 +5,7 @@ import type { Env } from '../../../_lib/env'
 import { loadWord } from '../../../_lib/guard'
 import { numParam, readJson, str } from '../../../_lib/handler'
 import { error, json } from '../../../_lib/http'
+import { normTranslation } from '../../../_lib/normalize'
 import { wordSenses } from '../../../../db/schema'
 
 export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
@@ -24,8 +25,9 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     source?: unknown
   }>(ctx.request)
 
-  const translation = str(body?.translation)
-  if (!translation) return error(400, 'translation required')
+  const rawTranslation = str(body?.translation)
+  if (!rawTranslation) return error(400, 'translation required')
+  const translation = normTranslation(rawTranslation)
 
   const current = await db
     .select({ position: wordSenses.position })

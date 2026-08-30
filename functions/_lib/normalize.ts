@@ -11,3 +11,8 @@ export function normText(s: string): string {
 export function isPhrase(cleaned: string): boolean {
   return cleaned.includes(' ')
 }
+
+/** Переводы храним единообразно — строчными. */
+export function normTranslation(s: string): string {
+  return s.trim().toLowerCase()
+}

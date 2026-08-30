@@ -5,7 +5,12 @@ import type { Env } from '../../_lib/env'
 import { filterOwnedFolderIds } from '../../_lib/guard'
 import { readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
-import { cleanText, isPhrase, normText } from '../../_lib/normalize'
+import {
+  cleanText,
+  isPhrase,
+  normText,
+  normTranslation,
+} from '../../_lib/normalize'
 import { wordFolders, words, wordSenses } from '../../../db/schema'
 
 interface SenseInput {
@@ -66,8 +71,25 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     byWord.set(s.word_id, arr)
   }
 
+  const links = ids.length
+    ? await db
+        .select({ word_id: wordFolders.wordId, folder_id: wordFolders.folderId })
+        .from(wordFolders)
+        .where(inArray(wordFolders.wordId, ids))
+    : []
+  const foldersByWord = new Map<number, number[]>()
+  for (const l of links) {
+    const arr = foldersByWord.get(l.word_id) ?? []
+    arr.push(l.folder_id)
+    foldersByWord.set(l.word_id, arr)
+  }
+
   return json({
-    words: rows.map((r) => ({ ...r, translations: byWord.get(r.id) ?? [] })),
+    words: rows.map((r) => ({
+      ...r,
+      translations: byWord.get(r.id) ?? [],
+      folder_ids: foldersByWord.get(r.id) ?? [],
+    })),
   })
 }
 
@@ -88,13 +110,16 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     ? (body!.senses as SenseInput[])
     : []
   const senseValues = rawSenses
-    .map((s) => ({
-      translation: str(s.translation),
-      partOfSpeech: str(s.part_of_speech),
-      definitionEn: str(s.definition_en),
-      example: str(s.example),
-      source: s.source === 'api' ? 'api' : 'manual',
-    }))
+    .map((s) => {
+      const t = str(s.translation)
+      return {
+        translation: t ? normTranslation(t) : null,
+        partOfSpeech: str(s.part_of_speech),
+        definitionEn: str(s.definition_en),
+        example: str(s.example),
+        source: s.source === 'api' ? 'api' : 'manual',
+      }
+    })
     .filter((s): s is typeof s & { translation: string } => !!s.translation)
 
   if (!senseValues.length) return error(400, 'at least one sense required')

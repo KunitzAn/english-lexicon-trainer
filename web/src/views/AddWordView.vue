@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import { fetchMyMemory } from '@/lib/mymemory'
@@ -9,7 +9,6 @@ const route = useRoute()
 const router = useRouter()
 
 const text = ref('')
-const wordInput = ref<HTMLInputElement | null>(null)
 const folders = ref<FolderRow[]>([])
 const selectedFolders = reactive<Set<number>>(new Set())
 
@@ -19,7 +18,6 @@ const lookupState = ref<'idle' | 'loading' | 'done' | 'degraded'>('idle')
 
 const manual = ref<SenseDraft[]>([])
 const error = ref<string | null>(null)
-const lastAdded = ref<string | null>(null)
 const saving = ref(false)
 
 onMounted(async () => {
@@ -106,16 +104,7 @@ function buildSenses() {
   ]
 }
 
-function resetForm() {
-  text.value = ''
-  variants.value = []
-  checkedVariants.clear()
-  manual.value = []
-  lookupState.value = 'idle'
-  nextTick(() => wordInput.value?.focus())
-}
-
-async function save(again: boolean) {
+async function save() {
   const senses = buildSenses()
   if (!text.value.trim()) {
     error.value = 'введите слово'
@@ -139,12 +128,7 @@ async function save(again: boolean) {
         }),
       },
     )
-    if (again) {
-      lastAdded.value = text.value.trim()
-      resetForm()
-    } else {
-      router.push(`/words/${res.word_id}`)
-    }
+    router.push(`/words/${res.word_id}`)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -157,10 +141,9 @@ async function save(again: boolean) {
   <main class="page">
     <p><router-link to="/">← темы</router-link></p>
     <h1>Новое слово</h1>
-    <p v-if="lastAdded" class="muted small">добавлено: {{ lastAdded }}</p>
 
     <form class="add" @submit.prevent="lookup">
-      <input ref="wordInput" v-model="text" placeholder="английское слово или фраза" />
+      <input v-model="text" placeholder="английское слово или фраза" />
       <button type="submit" :disabled="lookupState === 'loading' || !text.trim()">
         найти перевод
       </button>
@@ -215,10 +198,7 @@ async function save(again: boolean) {
     </section>
 
     <p v-if="error" class="err">{{ error }}</p>
-    <div class="row-btns">
-      <button :disabled="saving" @click="save(false)">сохранить</button>
-      <button :disabled="saving" @click="save(true)">сохранить и ещё</button>
-    </div>
+    <button :disabled="saving" @click="save">сохранить</button>
   </main>
 </template>
 
@@ -227,9 +207,5 @@ async function save(again: boolean) {
   display: grid;
   gap: 0.25rem;
   margin-bottom: 0.75rem;
-}
-.row-btns {
-  display: flex;
-  gap: 0.5rem;
 }
 </style>

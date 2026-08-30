@@ -125,10 +125,7 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <div class="row">
-      <router-link to="/words">← все слова</router-link>
-      <router-link to="/words/add">+ новое слово</router-link>
-    </div>
+    <p><router-link to="/words">← все слова</router-link></p>
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
@@ -187,12 +184,21 @@ onMounted(load)
         <button @click="saveFolders">сохранить темы</button>
       </section>
 
-      <button class="link" @click="removeWord">удалить слово</button>
+      <div class="row-btns">
+        <button @click="router.push('/words/add')">+ новое слово</button>
+        <button class="link" @click="removeWord">удалить слово</button>
+      </div>
     </template>
   </main>
 </template>
 
 <style scoped>
+.row-btns {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1rem;
+}
 .sense {
   display: grid;
   gap: 0.25rem;

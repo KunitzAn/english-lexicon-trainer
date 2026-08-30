@@ -54,7 +54,7 @@ export async function fetchMyMemory(q: string): Promise<MyMemoryResult> {
   const variants: LookupVariant[] = seen
     .filter((t) => t.length <= 80 && /[а-яё]/i.test(t))
     .slice(0, 8)
-    .map((translation) => ({ translation, source: 'api' as const }))
+    .map((t) => ({ translation: t.toLowerCase(), source: 'api' as const }))
 
   return {
     variants,
