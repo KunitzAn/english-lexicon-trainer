@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { startSession } from '@/lib/session'
@@ -11,9 +11,12 @@ import type {
   TrainingSet,
 } from '@/lib/types'
 
+const HARD_MAX = 25
+
 const router = useRouter()
 
 const folders = ref<FolderRow[]>([])
+const total = ref(0)
 const mode = ref<'auto' | 'manual'>('auto')
 const format = ref<TrainingFormat>('mix')
 const folderId = ref<number | null>(null)
@@ -23,13 +26,31 @@ const stage = ref<string | null>(null)
 const error = ref<string | null>(null)
 const quota = ref<QuotaInfo | null>(null)
 
+/** Сколько слов реально доступно: в выбранной теме или во всём словаре. */
+const available = computed(() => {
+  if (folderId.value) {
+    return folders.value.find((f) => f.id === folderId.value)?.word_count ?? 0
+  }
+  return total.value
+})
+const sliderMax = computed(() =>
+  available.value > 0 ? Math.min(HARD_MAX, available.value) : HARD_MAX,
+)
+const sliderMin = computed(() => Math.min(5, sliderMax.value))
+
+watch([sliderMax, sliderMin], () => {
+  if (count.value > sliderMax.value) count.value = sliderMax.value
+  if (count.value < sliderMin.value) count.value = sliderMin.value
+})
+
 onMounted(async () => {
   try {
     const [f, q] = await Promise.all([
-      api<{ folders: FolderRow[] }>('/folders'),
+      api<{ folders: FolderRow[]; total: number }>('/folders'),
       api<QuotaInfo>('/quota').catch(() => null),
     ])
     folders.value = f.folders
+    total.value = f.total
     quota.value = q
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -140,8 +161,19 @@ async function start() {
     </label>
 
     <div class="fld slider">
-      <span>Слов: <b>{{ count }}</b></span>
-      <input type="range" min="5" max="25" step="1" v-model.number="count" />
+      <span>
+        Слов: <b>{{ count }}</b>
+        <span v-if="available > 0 && available < HARD_MAX" class="muted small">
+          (доступно {{ available }})
+        </span>
+      </span>
+      <input
+        type="range"
+        :min="sliderMin"
+        :max="sliderMax"
+        step="1"
+        v-model.number="count"
+      />
     </div>
 
     <button class="go" :disabled="starting" @click="start">

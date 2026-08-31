@@ -27,7 +27,13 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     .groupBy(folders.id)
     .orderBy(folders.name)
 
-  return json({ folders: rows })
+  // всего слов в словаре пользователя (для ограничения размера тренировки)
+  const [t] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(words)
+    .where(and(eq(words.userId, ctx.data.userId), isNull(words.deletedAt)))
+
+  return json({ folders: rows, total: t?.total ?? 0 })
 }
 
 export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
