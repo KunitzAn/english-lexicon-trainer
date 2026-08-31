@@ -33,8 +33,8 @@ const hintShown = ref(false) // choice
 const mLeft = ref<number | null>(null) // match: выбранный EN (word_sense_id)
 const mLocked = ref<Set<number>>(new Set()) // сопоставленные EN
 const mLockedR = ref<Set<number>>(new Set()) // занятые RU (индексы)
-const mErred = ref<Set<number>>(new Set()) // EN с ошибкой
-const mWrong = ref<number | null>(null) // RU-индекс, мигающий красным
+const mErred = ref<Set<number>>(new Set()) // EN, где первая попытка была ошибочной (для зачёта)
+const mFlash = ref<{ left: number; right: number } | null>(null) // кратковременная красная подсветка
 const mGaveUp = ref(false)
 
 function resetSub() {
@@ -45,7 +45,7 @@ function resetSub() {
   mLocked.value = new Set()
   mLockedR.value = new Set()
   mErred.value = new Set()
-  mWrong.value = null
+  mFlash.value = null
   mGaveUp.value = false
 }
 
@@ -126,11 +126,17 @@ const matchDone = computed(
     (mGaveUp.value || mLocked.value.size === matchEx.value.cards.length),
 )
 function tapLeft(id: number) {
-  if (mLocked.value.has(id) || mGaveUp.value) return
+  if (mLocked.value.has(id) || mGaveUp.value || mFlash.value) return
   mLeft.value = mLeft.value === id ? null : id
 }
 function tapRight(i: number) {
-  if (mGaveUp.value || mLockedR.value.has(i) || mLeft.value == null) return
+  if (
+    mGaveUp.value ||
+    mFlash.value ||
+    mLockedR.value.has(i) ||
+    mLeft.value == null
+  )
+    return
   const id = mLeft.value
   const card = matchEx.value.cards.find((c) => c.word_sense_id === id)!
   if (norm(card.translation) === norm(matchEx.value.rights[i]!)) {
@@ -138,14 +144,14 @@ function tapRight(i: number) {
     mLockedR.value = new Set([...mLockedR.value, i])
     mLeft.value = null
   } else {
+    // первая ошибка по этой карточке — засчитываем неверно (mErred навсегда),
+    // но подсветку гасим и даём сопоставить заново
     mErred.value = new Set([...mErred.value, id])
-    mWrong.value = i
+    mFlash.value = { left: id, right: i }
     setTimeout(() => {
-      if (mWrong.value === i) {
-        mWrong.value = null
-        mLeft.value = null
-      }
-    }, 450)
+      mFlash.value = null
+      mLeft.value = null
+    }, 600)
   }
 }
 function matchGiveUp() {
@@ -269,11 +275,11 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
               :key="c.word_sense_id"
               class="chip"
               :class="{
-                sel: mLeft === c.word_sense_id,
+                sel: mLeft === c.word_sense_id && !mFlash,
                 done: mLocked.has(c.word_sense_id),
-                err: mErred.has(c.word_sense_id) && !mLocked.has(c.word_sense_id),
+                err: mFlash?.left === c.word_sense_id,
               }"
-              :disabled="mLocked.has(c.word_sense_id) || mGaveUp"
+              :disabled="mLocked.has(c.word_sense_id) || mGaveUp || !!mFlash"
               @click="tapLeft(c.word_sense_id)"
             >
               {{ c.text }}
@@ -284,8 +290,8 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
               v-for="(r, i) in matchEx.rights"
               :key="i"
               class="chip"
-              :class="{ done: mLockedR.has(i), err: mWrong === i }"
-              :disabled="mLockedR.has(i) || mGaveUp"
+              :class="{ done: mLockedR.has(i), err: mFlash?.right === i }"
+              :disabled="mLockedR.has(i) || mGaveUp || !!mFlash"
               @click="tapRight(i)"
             >
               {{ r }}
