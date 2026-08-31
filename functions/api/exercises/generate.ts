@@ -11,7 +11,12 @@ import {
   type GlossItem,
   type SenseForGen,
 } from '../../_lib/gen-exercises'
-import { bumpQuota, quotaLeft, refundQuota } from '../../_lib/quota'
+import {
+  bumpQuota,
+  exhaustQuota,
+  quotaLeft,
+  refundQuota,
+} from '../../_lib/quota'
 import { exercises, generationLog, words, wordSenses } from '../../../db/schema'
 
 const MAX_PER_SESSION = 25
@@ -150,6 +155,11 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
       }
     }
 
+    // 429 именно про дневной лимит OpenRouter (не про 20 req/min)
+    const dailyLimitHit =
+      res.errorKind === 'http_429' &&
+      /per[- ]?day|free-models-per-day|daily/i.test(res.detail ?? '')
+
     // причину провала — в generation_log и в логи Functions
     const detailParts: string[] = []
     detailParts.push(`senses=[${senses.map((s) => s.sense_id).join(',')}]`)
@@ -161,20 +171,34 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     const detail = valid.length ? null : detailParts.join('\n').slice(0, 4000)
 
     if (!valid.length) {
-      // запрос не дошёл до модели — вернём единицу квоты
-      const transportFail = !res.ok
-      console.warn(
-        `[generate] uid=${uid} model=${res.model ?? 'unknown'} errorKind=${
-          errKind ?? 'invalid'
-        }${transportFail ? ' (refund)' : ''}\n${detail}`,
-      )
-      if (transportFail) left = await refundQuota(db)
+      if (dailyLimitHit) {
+        // дневной лимит исчерпан — обнуляем квоту до 00:00 UTC (совпадает со сбросом OpenRouter)
+        await exhaustQuota(db)
+        left = 0
+        console.warn(
+          `[generate] uid=${uid} OpenRouter дневной лимит (429) — квота обнулена до 00:00 UTC\n${detail}`,
+        )
+      } else if (!res.ok) {
+        // запрос не дошёл до модели — вернём единицу квоты
+        left = await refundQuota(db)
+        console.warn(
+          `[generate] uid=${uid} model=${res.model ?? 'unknown'} errorKind=${errKind ?? 'invalid'} (refund)\n${detail}`,
+        )
+      } else {
+        console.warn(
+          `[generate] uid=${uid} model=${res.model ?? 'unknown'} errorKind=${errKind ?? 'invalid'}\n${detail}`,
+        )
+      }
     }
 
     await db.insert(generationLog).values({
       model: res.model ?? 'unknown',
       ok: valid.length > 0,
-      errorKind: valid.length ? null : errKind ?? 'invalid',
+      errorKind: valid.length
+        ? null
+        : dailyLimitHit
+          ? 'http_429_daily'
+          : errKind ?? 'invalid',
       detail,
     })
 
@@ -199,8 +223,10 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         result.push({ id: ins.id, type: ins.type, payload: ins.payload })
       }
     } else {
-      degraded = 'model_failed'
-      genDetail = `${errKind ?? 'invalid'}: ${detail ?? ''}`.slice(0, 4000)
+      degraded = dailyLimitHit ? 'quota' : 'model_failed'
+      genDetail = `${dailyLimitHit ? 'http_429_daily' : errKind ?? 'invalid'}: ${
+        detail ?? ''
+      }`.slice(0, 4000)
     }
   } else if (need.length && left <= 0) {
     degraded = 'quota'

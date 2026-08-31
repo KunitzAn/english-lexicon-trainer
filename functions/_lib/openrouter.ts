@@ -70,12 +70,18 @@ export async function chatJson(
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
+      const retryAfter = res.headers.get('retry-after')
+      const reset = res.headers.get('x-ratelimit-reset')
       return {
         ok: false,
         model: null,
         content: null,
         errorKind: `http_${res.status}` as ErrorKind,
-        detail: `HTTP ${res.status} ${res.statusText}${body ? ` — ${clip(body)}` : ''}`,
+        detail:
+          `HTTP ${res.status} ${res.statusText}` +
+          (retryAfter ? ` retry-after=${retryAfter}s` : '') +
+          (reset ? ` reset=${reset}` : '') +
+          (body ? ` — ${clip(body)}` : ''),
       }
     }
     const data = (await res.json()) as {
