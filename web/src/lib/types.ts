@@ -76,6 +76,9 @@ export interface TrainingSet {
 
 export type ExerciseType = 'match' | 'flashcard' | 'choice' | 'gap' | 'clickable'
 
+/** Формат тренировки: всё вперемешку / только контекст (ИИ) / только карточки (без ИИ). */
+export type TrainingFormat = 'mix' | 'context' | 'cards'
+
 export interface AttemptDraft {
   client_id: string
   word_sense_id: number

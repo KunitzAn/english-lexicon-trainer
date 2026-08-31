@@ -7,6 +7,7 @@ import type {
   FolderRow,
   GenerateResult,
   QuotaInfo,
+  TrainingFormat,
   TrainingSet,
 } from '@/lib/types'
 
@@ -14,8 +15,9 @@ const router = useRouter()
 
 const folders = ref<FolderRow[]>([])
 const mode = ref<'auto' | 'manual'>('auto')
+const format = ref<TrainingFormat>('mix')
 const folderId = ref<number | null>(null)
-const limit = ref(10)
+const count = ref(10)
 const starting = ref(false)
 const stage = ref<string | null>(null)
 const error = ref<string | null>(null)
@@ -42,7 +44,7 @@ async function start() {
   }
   starting.value = true
   try {
-    const q = new URLSearchParams({ mode: mode.value, limit: String(limit.value) })
+    const q = new URLSearchParams({ mode: mode.value, limit: String(count.value) })
     if (folderId.value) q.set('folder', String(folderId.value))
 
     stage.value = 'собираю набор…'
@@ -53,7 +55,8 @@ async function start() {
     }
 
     let context: GenerateResult['exercises'] = []
-    if (quota.value?.enabled) {
+    const wantContext = format.value !== 'cards' && quota.value?.enabled
+    if (wantContext) {
       stage.value = 'готовлю упражнения в контексте…'
       try {
         const gen = await api<GenerateResult>('/exercises/generate', {
@@ -63,7 +66,7 @@ async function start() {
           }),
         })
         context = gen.exercises
-        quota.value = { ...quota.value, left: gen.quota_left }
+        quota.value = { ...quota.value!, left: gen.quota_left }
         if (gen.degraded) {
           console.warn(
             `[генерация упражнений] degraded=${gen.degraded}\n${gen.gen_detail ?? ''}`,
@@ -74,12 +77,11 @@ async function start() {
           )
         }
       } catch (e) {
-        // генерация не критична — тренируемся на упражнениях без LLM
         console.warn('[генерация упражнений] запрос упал:', e)
       }
     }
 
-    startSession(set, context)
+    startSession(set, context, format.value)
     router.push({ name: 'train-run' })
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -113,6 +115,22 @@ async function start() {
       </label>
     </fieldset>
 
+    <fieldset class="grp">
+      <legend>Формат</legend>
+      <label class="opt">
+        <input type="radio" value="mix" v-model="format" />
+        вперемешку
+      </label>
+      <label class="opt">
+        <input type="radio" value="context" v-model="format" />
+        контекст — предложения с пропуском / выбор перевода
+      </label>
+      <label class="opt">
+        <input type="radio" value="cards" v-model="format" />
+        карточки — пары, самооценка, выбор (без ИИ)
+      </label>
+    </fieldset>
+
     <label class="fld">
       <span>Тема</span>
       <select v-model.number="folderId">
@@ -121,15 +139,10 @@ async function start() {
       </select>
     </label>
 
-    <label class="fld">
-      <span>Сколько слов</span>
-      <select v-model.number="limit">
-        <option :value="6">6</option>
-        <option :value="10">10</option>
-        <option :value="15">15</option>
-        <option :value="20">20</option>
-      </select>
-    </label>
+    <div class="fld slider">
+      <span>Слов: <b>{{ count }}</b></span>
+      <input type="range" min="5" max="25" step="1" v-model.number="count" />
+    </div>
 
     <button class="go" :disabled="starting" @click="start">
       {{ starting ? stage || 'собираю…' : 'начать' }}
@@ -164,6 +177,13 @@ async function start() {
   border-radius: 0.4rem;
   color: var(--fg);
   font: inherit;
+}
+.slider {
+  flex-wrap: wrap;
+}
+.slider input[type='range'] {
+  flex: 1 1 12rem;
+  accent-color: var(--accent);
 }
 .go {
   width: 100%;

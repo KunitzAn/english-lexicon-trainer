@@ -58,14 +58,16 @@ export function buildPrompt(senses: SenseForGen[]): {
     'Output ONLY one valid JSON object. No prose, no markdown, no code fences.',
     'Shape: {"exercises":[ ... ]}. One exercise per given sense; skip a sense if you cannot make a natural one.',
     'Produce a MIX of both kinds — aim for roughly half "gap" and half "clickable".',
+    'Keep every text as SHORT as possible while still natural C1/C2. Do not pad.',
     '',
-    'kind "gap": a 1–2 sentence natural C1/C2 context. Replace the target word with exactly "___" (three underscores).',
+    'kind "gap": ONE short sentence (about 10–16 words). Replace the target word with exactly "___" (three underscores).',
     ' The target word must NOT otherwise appear in the text. Fields: {"kind":"gap","sense_id":<int>,',
     ' "text":<string with one ___>,"answer":<base form of the target English word>,',
     ' "bank":[4 single English words incl. answer; distractors are real words of the same part of speech, wrong in this context]}.',
     '',
-    'kind "clickable": a 2–3 sentence natural C1/C2 paragraph that uses the target English word (inflected forms allowed).',
-    ' Fields: {"kind":"clickable","sense_id":<int>,"text":<string>,"target":<exact surface form as it appears in text>,',
+    'kind "clickable": ONE short sentence (about 12–20 words) that uses the target English word (inflected forms allowed).',
+    ' The sentence must make the intended meaning clear. Fields: {"kind":"clickable","sense_id":<int>,"text":<string>,',
+    ' "target":<exact surface form as it appears in text>,',
     ' "answer":<the provided Russian translation, copied verbatim>,',
     ' "options":[4 Russian glosses incl. answer; distractors are plausible Russian words clearly wrong for this sense]}.',
     '',
@@ -153,8 +155,10 @@ export function validateBatch(
     if (!sense || !g) return skip(`${tag}: sense_id не из набора`)
     if (used.has(senseId)) return skip(`${tag}: значение уже покрыто`)
     const text = typeof e.text === 'string' ? e.text.trim() : ''
-    if (text.length < 20 || text.length > 700)
-      return skip(`${tag}: длина текста ${text.length} вне 20..700`)
+    // короткие тексты: gap ≤ ~200, clickable ≤ ~260 символов
+    const maxLen = e.kind === 'gap' ? 200 : 260
+    if (text.length < 15 || text.length > maxLen)
+      return skip(`${tag}: длина текста ${text.length} вне 15..${maxLen}`)
 
     if (e.kind === 'gap') {
       const blanks = text.match(/_{2,}/g)

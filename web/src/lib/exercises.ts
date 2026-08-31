@@ -2,6 +2,7 @@ import type {
   GlossItem,
   ServerExercise,
   TrainingCard,
+  TrainingFormat,
   TrainingSet,
 } from './types'
 
@@ -115,30 +116,34 @@ function toContextExercise(se: ServerExercise): Exercise | null {
 export function buildExercises(
   set: TrainingSet,
   context: ServerExercise[] = [],
+  format: TrainingFormat = 'mix',
 ): Exercise[] {
   const pool = set.distractor_pool ?? []
 
-  // контекстные упражнения от ИИ — по одному на значение
+  // контекстные упражнения от ИИ — по одному на значение (в режиме «карточки» игнор)
   const ctxBySense = new Map<number, Exercise>()
-  for (const se of context) {
-    const ex = toContextExercise(se)
-    if (ex && !ctxBySense.has(se.payload.word_sense_id)) {
-      ctxBySense.set(se.payload.word_sense_id, ex)
+  if (format !== 'cards') {
+    for (const se of context) {
+      const ex = toContextExercise(se)
+      if (ex && !ctxBySense.has(se.payload.word_sense_id)) {
+        ctxBySense.set(se.payload.word_sense_id, ex)
+      }
     }
   }
 
   const cards = shuffle(set.cards)
-  // в сопоставление пар берём только значения без контекстного упражнения
+
+  // раунды «пары» — в mix и cards, из значений без контекстного упражнения
+  const useMatch = format !== 'context'
   const plain = cards.filter((c) => !ctxBySense.has(c.word_sense_id))
   const matchN =
-    plain.length >= 3
+    useMatch && plain.length >= 3
       ? Math.min(plain.length, Math.max(3, Math.round(plain.length * 0.4)))
       : 0
   const forMatch = plain.slice(0, matchN)
   const inMatch = new Set(forMatch.map((c) => c.word_sense_id))
 
   const exercises: Exercise[] = []
-
   for (const g of matchGroups(forMatch)) {
     exercises.push({
       kind: 'match',
@@ -159,7 +164,10 @@ export function buildExercises(
       .filter((c) => c.word_sense_id !== card.word_sense_id)
       .map((c) => c.translation)
     const distractors = distractorsFor(card.translation, others, pool, 3)
-    if (i % 3 === 0 || distractors.length < 2) {
+    const canChoice = distractors.length >= 2
+    // в «контексте» карточек нет — только выбор (карточка лишь если выбор не собрать)
+    const wantFlash = format !== 'context' && i % 3 === 0
+    if (!canChoice || wantFlash) {
       exercises.push({ kind: 'flashcard', card })
     } else {
       exercises.push({

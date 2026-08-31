@@ -60,7 +60,7 @@ onMounted(() => {
     router.replace({ name: 'train' })
     return
   }
-  exercises.value = buildExercises(session.set, session.context)
+  exercises.value = buildExercises(session.set, session.context, session.format)
   if (!exercises.value.length) router.replace({ name: 'train' })
 })
 

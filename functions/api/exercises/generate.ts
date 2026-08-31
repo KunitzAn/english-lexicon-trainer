@@ -14,7 +14,7 @@ import {
 import { bumpQuota, quotaLeft, refundQuota } from '../../_lib/quota'
 import { exercises, generationLog, words, wordSenses } from '../../../db/schema'
 
-const MAX_PER_SESSION = 6
+const MAX_PER_SESSION = 25
 const RESERVE_MAX_AGE_DAYS = 7
 
 type OutItem = { id: number; type: string; payload: unknown }

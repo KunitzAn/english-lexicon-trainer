@@ -64,7 +64,7 @@ export async function chatJson(
         ],
         response_format: { type: 'json_object' },
         temperature: 0.7,
-        max_tokens: 2200,
+        max_tokens: 8000,
       }),
       signal: ctrl.signal,
     })
