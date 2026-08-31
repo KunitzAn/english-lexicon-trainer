@@ -44,7 +44,10 @@ onMounted(load)
   <main class="page">
     <div class="row">
       <h1>Темы</h1>
-      <router-link to="/words">все слова</router-link>
+      <span class="nav">
+        <router-link to="/train">тренировка</router-link>
+        <router-link to="/words">все слова</router-link>
+      </span>
     </div>
 
     <form class="add" @submit.prevent="create">
@@ -64,3 +67,10 @@ onMounted(load)
     </ul>
   </main>
 </template>
+
+<style scoped>
+.nav {
+  display: flex;
+  gap: 1rem;
+}
+</style>

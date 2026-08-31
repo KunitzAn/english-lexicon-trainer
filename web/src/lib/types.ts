@@ -52,3 +52,40 @@ export interface SenseDraft {
   example: string
   expanded: boolean
 }
+
+// --- Этап 3: тренировка ---
+
+export interface TrainingCard {
+  word_sense_id: number
+  word_id: number
+  text: string
+  transcription: string | null
+  is_phrase: boolean
+  translation: string
+  definition_en: string | null
+  example: string | null
+}
+
+export interface TrainingSet {
+  mode: 'auto' | 'manual'
+  limit: number
+  new_count: number
+  cards: TrainingCard[]
+  distractor_pool: string[]
+}
+
+export type ExerciseType = 'match' | 'flashcard' | 'choice'
+
+export interface AttemptDraft {
+  client_id: string
+  word_sense_id: number
+  exercise_type: ExerciseType
+  is_correct: boolean | null
+  hint_used: boolean
+}
+
+export interface ProgressRow {
+  word_sense_id: number
+  correct_count: number
+  incorrect_count: number
+}

@@ -22,6 +22,13 @@
       "when": 1787991952787,
       "tag": "0002_faithful_plazm",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788198027496,
+      "tag": "0003_curvy_callisto",
+      "breakpoints": true
     }
   ]
 }

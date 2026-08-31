@@ -114,7 +114,60 @@ export const translationCache = pgTable('translation_cache', {
     .defaultNow(),
 })
 
+/**
+ * Этап 3. Каждая попытка ответа — источник истины для прогресса.
+ * `client_id` — UUID с клиента, дедуп при ретраях и синке с нескольких устройств.
+ * `is_correct` = null → пользователь подсмотрел перевод (нейтральный зачёт).
+ */
+export const attempts = pgTable(
+  'attempts',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull().unique(),
+    wordSenseId: integer('word_sense_id')
+      .notNull()
+      .references(() => wordSenses.id, { onDelete: 'cascade' }),
+    /** Заполняется на этапе 4 (сгенерированные упражнения). */
+    exerciseId: integer('exercise_id'),
+    exerciseType: text('exercise_type').notNull(),
+    isCorrect: boolean('is_correct'),
+    hintUsed: boolean('hint_used').notNull().default(false),
+    answeredAt: timestamp('answered_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('attempts_user_idx').on(t.userId),
+    index('attempts_sense_idx').on(t.wordSenseId),
+  ],
+)
+
+/**
+ * Денормализованные счётчики по значению. Не инкрементятся — пересчитываются
+ * из `attempts` после каждой записи (устойчиво к дублям и параллельным устройствам).
+ */
+export const wordSenseProgress = pgTable(
+  'word_sense_progress',
+  {
+    wordSenseId: integer('word_sense_id')
+      .primaryKey()
+      .references(() => wordSenses.id, { onDelete: 'cascade' }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    correctCount: integer('correct_count').notNull().default(0),
+    incorrectCount: integer('incorrect_count').notNull().default(0),
+    lastTrainedAt: timestamp('last_trained_at', { withTimezone: true }),
+  },
+  (t) => [index('word_sense_progress_user_idx').on(t.userId)],
+)
+
 export type User = typeof users.$inferSelect
 export type Folder = typeof folders.$inferSelect
 export type Word = typeof words.$inferSelect
 export type WordSense = typeof wordSenses.$inferSelect
+export type Attempt = typeof attempts.$inferSelect
+export type WordSenseProgress = typeof wordSenseProgress.$inferSelect
