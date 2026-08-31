@@ -108,15 +108,15 @@ onMounted(load)
         </template>
       </div>
 
-      <ul class="list">
-        <li v-for="w in words" :key="w.id" class="word-row">
+      <ul class="words">
+        <li v-for="w in words" :key="w.id" class="wrow">
           <input type="checkbox" :checked="selected.has(w.id)" @change="toggle(w.id)" />
-          <div class="body">
-            <div class="line">
-              <router-link :to="`/words/${w.id}`">{{ w.text }}</router-link>
-              <span class="muted">{{ w.translations.join(', ') }}</span>
+          <div class="wbody">
+            <div class="wmain">
+              <router-link :to="`/words/${w.id}`" class="wtext">{{ w.text }}</router-link>
+              <span class="wtr">{{ w.translations.join(', ') }}</span>
             </div>
-            <div class="muted small">{{ folderNames(w.folder_ids) }}</div>
+            <div class="wmeta">{{ folderNames(w.folder_ids) }}</div>
           </div>
         </li>
         <li v-if="!words.length" class="muted">словарь пуст</li>
@@ -132,31 +132,52 @@ onMounted(load)
   align-items: center;
   gap: 0.5rem;
   margin: 0.75rem 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.6rem 0.75rem;
   background: var(--card);
   border-radius: 0.5rem;
 }
-.word-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: flex-start;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid #23262e;
-}
-.word-row .body {
-  flex: 1;
-}
-.line {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-select {
+.bulkbar select {
+  flex: 1 1 8rem;
+  min-width: 0;
   padding: 0.4rem 0.5rem;
   background: #0d0f13;
   border: 1px solid #2a2e39;
   border-radius: 0.4rem;
   color: var(--fg);
   font: inherit;
+}
+
+.words {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.wrow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #23262e;
+}
+.wbody {
+  flex: 1;
+  min-width: 0;
+}
+.wmain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.wtext {
+  font-weight: 600;
+}
+.wtr {
+  color: var(--muted);
+}
+.wmeta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
 }
 </style>

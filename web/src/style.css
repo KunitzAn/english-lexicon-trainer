@@ -84,7 +84,7 @@ a {
   margin: 1rem 0;
 }
 
-input {
+input:not([type='checkbox']):not([type='radio']) {
   width: 100%;
   padding: 0.5rem 0.6rem;
   background: #0d0f13;
@@ -92,6 +92,13 @@ input {
   border-radius: 0.4rem;
   color: var(--fg);
   font: inherit;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  margin: 0;
+  flex: none;
 }
 
 button {
