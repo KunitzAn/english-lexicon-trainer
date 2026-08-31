@@ -56,7 +56,10 @@ export function buildPrompt(senses: SenseForGen[]): {
   const system = [
     'You generate English C1/C2 vocabulary exercises.',
     'Output ONLY one valid JSON object. No prose, no markdown, no code fences.',
-    'Shape: {"exercises":[ ... ]}. One exercise per given sense; skip a sense if you cannot make a natural one.',
+    'Shape: {"exercises":[ ... ]}. At most one exercise per given sense.',
+    'It is BETTER to skip a sense than to force it: if the word does not fit its given',
+    'sense naturally in a real, idiomatic sentence, omit that sense entirely. A shorter',
+    'array of clean exercises beats a full array with strained usage.',
     'Produce a MIX of both kinds — aim for roughly half "gap" and half "clickable".',
     'Keep every text as SHORT as possible while still natural C1/C2. Do not pad.',
     '',
