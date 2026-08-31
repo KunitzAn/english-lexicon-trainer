@@ -68,6 +68,10 @@ async function start() {
           console.warn(
             `[генерация упражнений] degraded=${gen.degraded}\n${gen.gen_detail ?? ''}`,
           )
+        } else {
+          console.info(
+            `[генерация упражнений] контекстных: ${gen.exercises.length}, квота осталась: ${gen.quota_left}`,
+          )
         }
       } catch (e) {
         // генерация не критична — тренируемся на упражнениях без LLM
