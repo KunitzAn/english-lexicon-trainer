@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api'
 import type { FolderRow, WordListItem } from '@/lib/types'
 
@@ -8,9 +8,10 @@ const folders = ref<FolderRow[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-const openWordId = ref<number | null>(null)
-const draftFolders = reactive<Set<number>>(new Set())
-const savingFolders = ref(false)
+const selected = reactive<Set<number>>(new Set())
+const bulkFolderId = ref<number | null>(null)
+const busy = ref(false)
+const notice = ref<string | null>(null)
 
 async function load() {
   loading.value = true
@@ -21,11 +22,26 @@ async function load() {
     ])
     words.value = w.words
     folders.value = f.folders
+    if (!bulkFolderId.value && f.folders[0]) bulkFolderId.value = f.folders[0].id
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
   }
+}
+
+const allSelected = computed(
+  () => words.value.length > 0 && selected.size === words.value.length,
+)
+
+function toggleAll() {
+  if (allSelected.value) selected.clear()
+  else for (const w of words.value) selected.add(w.id)
+}
+
+function toggle(id: number) {
+  if (selected.has(id)) selected.delete(id)
+  else selected.add(id)
 }
 
 function folderNames(ids: number[] | undefined): string {
@@ -36,34 +52,28 @@ function folderNames(ids: number[] | undefined): string {
     .join(', ')
 }
 
-function toggleEditor(w: WordListItem) {
-  if (openWordId.value === w.id) {
-    openWordId.value = null
-    return
-  }
-  openWordId.value = w.id
-  draftFolders.clear()
-  for (const id of w.folder_ids ?? []) draftFolders.add(id)
-}
-
-function toggleDraft(id: number) {
-  if (draftFolders.has(id)) draftFolders.delete(id)
-  else draftFolders.add(id)
-}
-
-async function saveFolders(w: WordListItem) {
-  savingFolders.value = true
+async function bulk(op: 'add' | 'remove') {
+  if (!selected.size || !bulkFolderId.value) return
+  busy.value = true
+  notice.value = null
+  error.value = null
   try {
-    const res = await api<{ folder_ids: number[] }>(`/words/${w.id}/folders`, {
-      method: 'PUT',
-      body: JSON.stringify({ folder_ids: [...draftFolders] }),
+    const res = await api<{ updated: number }>('/words/bulk-folders', {
+      method: 'POST',
+      body: JSON.stringify({
+        word_ids: [...selected],
+        folder_id: bulkFolderId.value,
+        op,
+      }),
     })
-    w.folder_ids = res.folder_ids
-    openWordId.value = null
+    const name = folders.value.find((f) => f.id === bulkFolderId.value)?.name ?? ''
+    notice.value = `${op === 'add' ? 'добавлено в' : 'убрано из'} «${name}»: ${res.updated}`
+    selected.clear()
+    await load()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
-    savingFolders.value = false
+    busy.value = false
   }
 }
 
@@ -79,56 +89,74 @@ onMounted(load)
     </div>
 
     <p v-if="error" class="err">{{ error }}</p>
+    <p v-if="notice" class="muted small">{{ notice }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
-    <ul v-else class="list">
-      <li v-for="w in words" :key="w.id" class="word-row">
-        <div class="line">
-          <router-link :to="`/words/${w.id}`">{{ w.text }}</router-link>
-          <span class="muted">{{ w.translations.join(', ') }}</span>
-        </div>
-        <div class="line sub">
-          <span class="muted small">{{ folderNames(w.folder_ids) }}</span>
-          <button class="link" @click="toggleEditor(w)">
-            {{ openWordId === w.id ? 'скрыть' : 'темы' }}
-          </button>
-        </div>
-        <div v-if="openWordId === w.id" class="editor">
-          <label v-for="f in folders" :key="f.id" class="opt">
-            <input
-              type="checkbox"
-              :checked="draftFolders.has(f.id)"
-              @change="toggleDraft(f.id)"
-            />
-            {{ f.name }}
-          </label>
-          <p v-if="!folders.length" class="muted small">тем нет — создай на главной</p>
-          <button :disabled="savingFolders" @click="saveFolders(w)">сохранить</button>
-        </div>
-      </li>
-      <li v-if="!words.length" class="muted">словарь пуст</li>
-    </ul>
+    <template v-else>
+      <div v-if="words.length" class="bulkbar">
+        <label class="opt">
+          <input type="checkbox" :checked="allSelected" @change="toggleAll" />
+          выбрать все
+        </label>
+        <template v-if="selected.size">
+          <span class="muted small">выбрано {{ selected.size }}</span>
+          <select v-model.number="bulkFolderId">
+            <option v-for="f in folders" :key="f.id" :value="f.id">{{ f.name }}</option>
+          </select>
+          <button :disabled="busy || !bulkFolderId" @click="bulk('add')">＋ в тему</button>
+          <button :disabled="busy || !bulkFolderId" @click="bulk('remove')">－ из темы</button>
+        </template>
+      </div>
+
+      <ul class="list">
+        <li v-for="w in words" :key="w.id" class="word-row">
+          <input type="checkbox" :checked="selected.has(w.id)" @change="toggle(w.id)" />
+          <div class="body">
+            <div class="line">
+              <router-link :to="`/words/${w.id}`">{{ w.text }}</router-link>
+              <span class="muted">{{ w.translations.join(', ') }}</span>
+            </div>
+            <div class="muted small">{{ folderNames(w.folder_ids) }}</div>
+          </div>
+        </li>
+        <li v-if="!words.length" class="muted">словарь пуст</li>
+      </ul>
+    </template>
   </main>
 </template>
 
 <style scoped>
+.bulkbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--card);
+  border-radius: 0.5rem;
+}
 .word-row {
-  display: block;
-  padding: 0.6rem 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0;
   border-bottom: 1px solid #23262e;
+}
+.word-row .body {
+  flex: 1;
 }
 .line {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
 }
-.line.sub {
-  margin-top: 0.2rem;
-}
-.editor {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--card);
-  border-radius: 0.5rem;
+select {
+  padding: 0.4rem 0.5rem;
+  background: #0d0f13;
+  border: 1px solid #2a2e39;
+  border-radius: 0.4rem;
+  color: var(--fg);
+  font: inherit;
 }
 </style>

@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { Db } from './db'
 import { folders, words, wordSenses } from '../../db/schema'
 
@@ -52,4 +52,24 @@ export async function filterOwnedFolderIds(
     .where(eq(folders.userId, userId))
   const owned = new Set(rows.map((r) => r.id))
   return ids.filter((id) => owned.has(id))
+}
+
+/** Оставляет только id слов пользователя (не удалённых). */
+export async function filterOwnedWordIds(
+  db: Db,
+  userId: number,
+  ids: number[],
+): Promise<number[]> {
+  if (ids.length === 0) return []
+  const rows = await db
+    .select({ id: words.id })
+    .from(words)
+    .where(
+      and(
+        eq(words.userId, userId),
+        isNull(words.deletedAt),
+        inArray(words.id, ids),
+      ),
+    )
+  return rows.map((r) => r.id)
 }
