@@ -64,8 +64,14 @@ async function start() {
         })
         context = gen.exercises
         quota.value = { ...quota.value, left: gen.quota_left }
-      } catch {
+        if (gen.degraded) {
+          console.warn(
+            `[генерация упражнений] degraded=${gen.degraded}\n${gen.gen_detail ?? ''}`,
+          )
+        }
+      } catch (e) {
         // генерация не критична — тренируемся на упражнениях без LLM
+        console.warn('[генерация упражнений] запрос упал:', e)
       }
     }
 

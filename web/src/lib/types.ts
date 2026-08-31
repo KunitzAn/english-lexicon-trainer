@@ -130,6 +130,7 @@ export interface GenerateResult {
   exercises: ServerExercise[]
   quota_left: number
   degraded: string | null
+  gen_detail?: string | null
 }
 
 export interface QuotaInfo {

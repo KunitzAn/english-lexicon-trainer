@@ -29,3 +29,13 @@ export async function bumpQuota(db: Db): Promise<number> {
     .returning({ count: quotaUsage.count })
   return Math.max(DAILY_LIMIT - (row?.count ?? DAILY_LIMIT), 0)
 }
+
+/** Вернуть единицу квоты, если запрос не дошёл до модели (сеть/таймаут/HTTP-ошибка). */
+export async function refundQuota(db: Db): Promise<number> {
+  const [row] = await db
+    .update(quotaUsage)
+    .set({ count: sql`greatest(${quotaUsage.count} - 1, 0)` })
+    .where(eq(quotaUsage.date, utcDate()))
+    .returning({ count: quotaUsage.count })
+  return Math.max(DAILY_LIMIT - (row?.count ?? 0), 0)
+}

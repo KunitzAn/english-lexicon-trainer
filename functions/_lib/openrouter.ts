@@ -35,7 +35,11 @@ export interface ChatResult {
   model: string | null
   content: string | null
   errorKind: ErrorKind | null
+  /** Человекочитаемая причина: тело ошибки OpenRouter, finish_reason, стек. */
+  detail: string | null
 }
+
+const clip = (s: string, n = 900) => (s.length > n ? s.slice(0, n) + '…' : s)
 
 export async function chatJson(
   apiKey: string,
@@ -65,23 +69,45 @@ export async function chatJson(
       signal: ctrl.signal,
     })
     if (!res.ok) {
+      const body = await res.text().catch(() => '')
       return {
         ok: false,
         model: null,
         content: null,
         errorKind: `http_${res.status}` as ErrorKind,
+        detail: `HTTP ${res.status} ${res.statusText}${body ? ` — ${clip(body)}` : ''}`,
       }
     }
     const data = (await res.json()) as {
       model?: string
-      choices?: { message?: { content?: string } }[]
+      choices?: { message?: { content?: string }; finish_reason?: string }[]
+      error?: unknown
     }
-    const content = data.choices?.[0]?.message?.content ?? null
+    const choice = data.choices?.[0]
+    const content = choice?.message?.content ?? null
     const model = data.model ?? null
+    const finish = choice?.finish_reason
     if (!content || !content.trim()) {
-      return { ok: false, model, content: null, errorKind: 'empty' }
+      return {
+        ok: false,
+        model,
+        content: null,
+        errorKind: 'empty',
+        detail:
+          `пустой content (finish_reason=${finish ?? '—'})` +
+          (data.error ? `; error=${clip(JSON.stringify(data.error))}` : '') +
+          (!data.choices?.length
+            ? `; ответ=${clip(JSON.stringify(data))}`
+            : ''),
+      }
     }
-    return { ok: true, model, content, errorKind: null }
+    return {
+      ok: true,
+      model,
+      content,
+      errorKind: null,
+      detail: finish && finish !== 'stop' ? `finish_reason=${finish}` : null,
+    }
   } catch (e) {
     const name = e instanceof Error ? e.name : ''
     return {
@@ -89,6 +115,7 @@ export async function chatJson(
       model: null,
       content: null,
       errorKind: name === 'AbortError' ? 'timeout' : 'network',
+      detail: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
     }
   } finally {
     clearTimeout(timer)

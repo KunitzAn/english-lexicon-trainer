@@ -11,7 +11,7 @@ import {
   type GlossItem,
   type SenseForGen,
 } from '../../_lib/gen-exercises'
-import { bumpQuota, quotaLeft } from '../../_lib/quota'
+import { bumpQuota, quotaLeft, refundQuota } from '../../_lib/quota'
 import { exercises, generationLog, words, wordSenses } from '../../../db/schema'
 
 const MAX_PER_SESSION = 6
@@ -120,6 +120,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     .slice(0, MAX_PER_SESSION - result.length)
 
   let degraded: string | null = null
+  let genDetail: string | null = null
   let left = await quotaLeft(db)
 
   if (need.length && left > 0) {
@@ -135,21 +136,46 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     const { system, user } = buildPrompt(senses)
     const res = await chatJson(ctx.env.OPENROUTER_API_KEY, system, user)
 
-    let valid: ReturnType<typeof validateBatch> = []
+    let valid: ReturnType<typeof validateBatch>['valid'] = []
+    let rejects: string[] = []
     let errKind: string | null = res.errorKind
     if (res.ok && res.content) {
       const parsed = extractJson(res.content)
       if (!parsed) errKind = 'bad_json'
       else {
-        valid = validateBatch(parsed, senses, gloss)
+        const v = validateBatch(parsed, senses, gloss)
+        valid = v.valid
+        rejects = v.rejects
         if (!valid.length) errKind = 'invalid'
       }
+    }
+
+    // причину провала — в generation_log и в логи Functions
+    const detailParts: string[] = []
+    detailParts.push(`senses=[${senses.map((s) => s.sense_id).join(',')}]`)
+    if (res.errorKind) detailParts.push(`errorKind=${res.errorKind}`)
+    if (res.detail) detailParts.push(`openrouter: ${res.detail}`)
+    if (errKind === 'bad_json' && res.content)
+      detailParts.push(`не распарсился JSON; content: ${res.content.slice(0, 900)}`)
+    if (rejects.length) detailParts.push(`отбраковано:\n- ${rejects.join('\n- ')}`)
+    const detail = valid.length ? null : detailParts.join('\n').slice(0, 4000)
+
+    if (!valid.length) {
+      // запрос не дошёл до модели — вернём единицу квоты
+      const transportFail = !res.ok
+      console.warn(
+        `[generate] uid=${uid} model=${res.model ?? 'unknown'} errorKind=${
+          errKind ?? 'invalid'
+        }${transportFail ? ' (refund)' : ''}\n${detail}`,
+      )
+      if (transportFail) left = await refundQuota(db)
     }
 
     await db.insert(generationLog).values({
       model: res.model ?? 'unknown',
       ok: valid.length > 0,
       errorKind: valid.length ? null : errKind ?? 'invalid',
+      detail,
     })
 
     if (valid.length) {
@@ -174,10 +200,16 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
       }
     } else {
       degraded = 'model_failed'
+      genDetail = `${errKind ?? 'invalid'}: ${detail ?? ''}`.slice(0, 4000)
     }
   } else if (need.length && left <= 0) {
     degraded = 'quota'
   }
 
-  return json({ exercises: result, quota_left: left, degraded })
+  return json({
+    exercises: result,
+    quota_left: left,
+    degraded,
+    gen_detail: genDetail,
+  })
 }

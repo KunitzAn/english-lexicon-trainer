@@ -108,41 +108,67 @@ function cleanList(v: unknown, max: number): string[] | null {
 const wordRe = (w: string) =>
   new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
 
+export interface ValidateResult {
+  valid: ValidExercise[]
+  /** Причины отбраковки — по одной строке на упражнение, для generation_log. */
+  rejects: string[]
+}
+
 /** Разобрать ответ ИИ и оставить только валидные упражнения (glossary добавляется извне). */
 export function validateBatch(
   root: unknown,
   senses: SenseForGen[],
   gloss: Map<number, GlossItem>,
-): ValidExercise[] {
+): ValidateResult {
   const arr =
     root && typeof root === 'object' && Array.isArray((root as any).exercises)
       ? ((root as any).exercises as unknown[])
       : null
-  if (!arr) return []
+  if (!arr) {
+    return {
+      valid: [],
+      rejects: [
+        `корень без массива "exercises" (ключи: ${
+          root && typeof root === 'object'
+            ? Object.keys(root as object).join(',')
+            : typeof root
+        })`,
+      ],
+    }
+  }
 
   const byId = new Map(senses.map((s) => [s.sense_id, s]))
   const used = new Set<number>()
   const out: ValidExercise[] = []
+  const rejects: string[] = []
+  const skip = (why: string) => rejects.push(why)
 
-  for (const raw of arr) {
-    if (!raw || typeof raw !== 'object') continue
+  arr.forEach((raw, i) => {
+    if (!raw || typeof raw !== 'object') return skip(`#${i}: не объект`)
     const e = raw as Record<string, unknown>
     const senseId = Number(e.sense_id)
     const sense = byId.get(senseId)
     const g = gloss.get(senseId)
-    if (!sense || !g || used.has(senseId)) continue
+    const tag = `#${i} sense=${e.sense_id} kind=${e.kind}`
+    if (!sense || !g) return skip(`${tag}: sense_id не из набора`)
+    if (used.has(senseId)) return skip(`${tag}: значение уже покрыто`)
     const text = typeof e.text === 'string' ? e.text.trim() : ''
-    if (text.length < 20 || text.length > 700) continue
+    if (text.length < 20 || text.length > 700)
+      return skip(`${tag}: длина текста ${text.length} вне 20..700`)
 
     if (e.kind === 'gap') {
       const blanks = text.match(/_{2,}/g)
-      if (!blanks || blanks.length !== 1) continue
-      if (wordRe(sense.word).test(text)) continue // целевое слово не должно светиться
+      if (!blanks || blanks.length !== 1)
+        return skip(`${tag}: пропусков "___" = ${blanks?.length ?? 0}, нужен 1`)
+      if (wordRe(sense.word).test(text))
+        return skip(`${tag}: целевое слово "${sense.word}" видно в тексте`)
       const bank = cleanList(e.bank, 40)
-      if (!bank || bank.length < 3 || bank.length > 5) continue
+      if (!bank || bank.length < 3 || bank.length > 5)
+        return skip(`${tag}: bank = ${JSON.stringify(e.bank)} (нужно 3..5 уникальных)`)
       const answer = typeof e.answer === 'string' ? e.answer.trim() : ''
       const inBank = bank.find((b) => norm(b) === norm(answer))
-      if (!answer || !inBank) continue
+      if (!answer || !inBank)
+        return skip(`${tag}: answer "${answer}" не входит в bank ${JSON.stringify(bank)}`)
       used.add(senseId)
       out.push({
         type: 'gap',
@@ -158,15 +184,20 @@ export function validateBatch(
       })
     } else if (e.kind === 'clickable') {
       const target = typeof e.target === 'string' ? e.target.trim() : ''
-      if (!target || target.length > 40) continue
-      if (!text.toLowerCase().includes(target.toLowerCase())) continue
+      if (!target || target.length > 40)
+        return skip(`${tag}: target "${target}" пустой или длиннее 40`)
+      if (!text.toLowerCase().includes(target.toLowerCase()))
+        return skip(`${tag}: target "${target}" не найден в тексте`)
       const options = cleanList(e.options, 60)
-      if (!options || options.length < 3 || options.length > 5) continue
-      // правильный вариант всегда наш перевод из БД; он обязан быть среди вариантов
+      if (!options || options.length < 3 || options.length > 5)
+        return skip(`${tag}: options = ${JSON.stringify(e.options)} (нужно 3..5 уникальных)`)
       const opts = options.map((o) =>
         norm(o) === norm(sense.translation) ? sense.translation : o,
       )
-      if (!opts.some((o) => o === sense.translation)) continue
+      if (!opts.some((o) => o === sense.translation))
+        return skip(
+          `${tag}: перевод из БД "${sense.translation}" не среди options ${JSON.stringify(options)}`,
+        )
       used.add(senseId)
       out.push({
         type: 'clickable',
@@ -181,7 +212,9 @@ export function validateBatch(
           glossary: [g],
         },
       })
+    } else {
+      return skip(`${tag}: неизвестный kind`)
     }
-  }
-  return out
+  })
+  return { valid: out, rejects }
 }

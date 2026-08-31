@@ -201,6 +201,8 @@ export const generationLog = pgTable('generation_log', {
   model: text('model').notNull(),
   ok: boolean('ok').notNull(),
   errorKind: text('error_kind'),
+  /** Подробности провала: ответ OpenRouter, сырой контент, причины отбраковки. */
+  detail: text('detail'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
