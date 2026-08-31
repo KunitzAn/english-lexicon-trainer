@@ -3,7 +3,12 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { startSession } from '@/lib/session'
-import type { FolderRow, TrainingSet } from '@/lib/types'
+import type {
+  FolderRow,
+  GenerateResult,
+  QuotaInfo,
+  TrainingSet,
+} from '@/lib/types'
 
 const router = useRouter()
 
@@ -12,12 +17,18 @@ const mode = ref<'auto' | 'manual'>('auto')
 const folderId = ref<number | null>(null)
 const limit = ref(10)
 const starting = ref(false)
+const stage = ref<string | null>(null)
 const error = ref<string | null>(null)
+const quota = ref<QuotaInfo | null>(null)
 
 onMounted(async () => {
   try {
-    const res = await api<{ folders: FolderRow[] }>('/folders')
-    folders.value = res.folders
+    const [f, q] = await Promise.all([
+      api<{ folders: FolderRow[] }>('/folders'),
+      api<QuotaInfo>('/quota').catch(() => null),
+    ])
+    folders.value = f.folders
+    quota.value = q
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -33,17 +44,38 @@ async function start() {
   try {
     const q = new URLSearchParams({ mode: mode.value, limit: String(limit.value) })
     if (folderId.value) q.set('folder', String(folderId.value))
+
+    stage.value = 'собираю набор…'
     const set = await api<TrainingSet>(`/training-set?${q}`)
     if (!set.cards.length) {
       error.value = 'Нечего тренировать — добавьте слова или выберите другую тему'
       return
     }
-    startSession(set)
+
+    let context: GenerateResult['exercises'] = []
+    if (quota.value?.enabled) {
+      stage.value = 'готовлю упражнения в контексте…'
+      try {
+        const gen = await api<GenerateResult>('/exercises/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            sense_ids: set.cards.map((c) => c.word_sense_id),
+          }),
+        })
+        context = gen.exercises
+        quota.value = { ...quota.value, left: gen.quota_left }
+      } catch {
+        // генерация не критична — тренируемся на упражнениях без LLM
+      }
+    }
+
+    startSession(set, context)
     router.push({ name: 'train-run' })
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     starting.value = false
+    stage.value = null
   }
 }
 </script>
@@ -52,6 +84,10 @@ async function start() {
   <main class="page">
     <p><router-link to="/">← темы</router-link></p>
     <h1>Тренировка</h1>
+
+    <p v-if="quota?.enabled" class="muted small">
+      запросов к ИИ сегодня осталось: {{ quota.left }} / {{ quota.limit }}
+    </p>
 
     <p v-if="error" class="err">{{ error }}</p>
 
@@ -86,7 +122,7 @@ async function start() {
     </label>
 
     <button class="go" :disabled="starting" @click="start">
-      {{ starting ? 'собираю…' : 'начать' }}
+      {{ starting ? stage || 'собираю…' : 'начать' }}
     </button>
   </main>
 </template>

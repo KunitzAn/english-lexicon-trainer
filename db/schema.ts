@@ -165,9 +165,51 @@ export const wordSenseProgress = pgTable(
   (t) => [index('word_sense_progress_user_idx').on(t.userId)],
 )
 
+/**
+ * Этап 4. Сгенерированные контекстные упражнения.
+ * `payload` — JSON по схеме типа + секция `glossary` (слово/перевод/транскрипция/пример
+ * по всем задействованным значениям), чтобы «подсмотреть перевод» и разбор работали
+ * без обращения к ИИ. `status`: reserve — в запасе, in_use — выдано в сессию.
+ */
+export const exercises = pgTable(
+  'exercises',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'gap' | 'clickable' (типы 1–2; дальше 3–5)
+    payload: jsonb('payload').notNull(),
+    targetSenseIds: integer('target_sense_ids').array().notNull(),
+    status: text('status').notNull().default('reserve'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('exercises_user_idx').on(t.userId)],
+)
+
+/** Серверный счётчик квоты OpenRouter. `date` — UTC 'YYYY-MM-DD'. Общий на приложение. */
+export const quotaUsage = pgTable('quota_usage', {
+  date: text('date').primaryKey(),
+  count: integer('count').notNull().default(0),
+})
+
+/** Мини-лог генераций: какие :free-модели реально отдают валидный JSON. */
+export const generationLog = pgTable('generation_log', {
+  id: serial('id').primaryKey(),
+  model: text('model').notNull(),
+  ok: boolean('ok').notNull(),
+  errorKind: text('error_kind'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
 export type User = typeof users.$inferSelect
 export type Folder = typeof folders.$inferSelect
 export type Word = typeof words.$inferSelect
 export type WordSense = typeof wordSenses.$inferSelect
 export type Attempt = typeof attempts.$inferSelect
 export type WordSenseProgress = typeof wordSenseProgress.$inferSelect
+export type Exercise = typeof exercises.$inferSelect

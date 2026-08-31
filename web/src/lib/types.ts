@@ -74,11 +74,12 @@ export interface TrainingSet {
   distractor_pool: string[]
 }
 
-export type ExerciseType = 'match' | 'flashcard' | 'choice'
+export type ExerciseType = 'match' | 'flashcard' | 'choice' | 'gap' | 'clickable'
 
 export interface AttemptDraft {
   client_id: string
   word_sense_id: number
+  exercise_id?: number
   exercise_type: ExerciseType
   is_correct: boolean | null
   hint_used: boolean
@@ -88,4 +89,51 @@ export interface ProgressRow {
   word_sense_id: number
   correct_count: number
   incorrect_count: number
+}
+
+// --- Этап 4: контекстные упражнения от ИИ ---
+
+export interface GlossItem {
+  word_sense_id: number
+  text: string
+  transcription: string | null
+  translation: string
+  definition_en: string | null
+  example: string | null
+}
+
+export interface GapPayload {
+  kind: 'gap'
+  word_sense_id: number
+  text: string
+  bank: string[]
+  answer: string
+  glossary: GlossItem[]
+}
+export interface ClickablePayload {
+  kind: 'clickable'
+  word_sense_id: number
+  text: string
+  target: string
+  options: string[]
+  answer: string
+  glossary: GlossItem[]
+}
+
+export interface ServerExercise {
+  id: number
+  type: 'gap' | 'clickable'
+  payload: GapPayload | ClickablePayload
+}
+
+export interface GenerateResult {
+  exercises: ServerExercise[]
+  quota_left: number
+  degraded: string | null
+}
+
+export interface QuotaInfo {
+  left: number
+  limit: number
+  enabled: boolean
 }

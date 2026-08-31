@@ -5,12 +5,11 @@ import { api } from '@/api'
 import { endSession, session } from '@/lib/session'
 import {
   buildExercises,
-  isChoiceCorrect,
-  type ChoiceExercise,
+  optIsCorrect,
   type Exercise,
   type MatchExercise,
 } from '@/lib/exercises'
-import type { AttemptDraft, TrainingCard } from '@/lib/types'
+import type { AttemptDraft } from '@/lib/types'
 
 const router = useRouter()
 const norm = (s: string) => s.trim().toLowerCase()
@@ -21,20 +20,27 @@ const phase = ref<'run' | 'summary'>('run')
 
 const attempts = ref<AttemptDraft[]>([])
 type Outcome = 'correct' | 'wrong' | 'hint'
-const review = ref<{ card: TrainingCard; outcome: Outcome }[]>([])
+interface SenseRef {
+  sense_id: number
+  text: string
+  translation: string
+  transcription: string | null
+  example: string | null
+}
+const review = ref<(SenseRef & { outcome: Outcome })[]>([])
 
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 
-// --- по-упражнению ---
+// --- состояние текущего упражнения ---
 const revealed = ref(false) // flashcard
-const picked = ref<string | null>(null) // choice
-const hintShown = ref(false) // choice
+const picked = ref<string | null>(null) // pick: выбранный вариант
+const hintShown = ref(false) // pick: подсмотрел перевод
 const mLeft = ref<number | null>(null) // match: выбранный EN (word_sense_id)
-const mLocked = ref<Set<number>>(new Set()) // сопоставленные EN
-const mLockedR = ref<Set<number>>(new Set()) // занятые RU (индексы)
-const mErred = ref<Set<number>>(new Set()) // EN, где первая попытка была ошибочной (для зачёта)
-const mFlash = ref<{ left: number; right: number } | null>(null) // кратковременная красная подсветка
+const mLocked = ref<Set<number>>(new Set())
+const mLockedR = ref<Set<number>>(new Set())
+const mErred = ref<Set<number>>(new Set()) // EN с ошибочной первой попыткой (для зачёта)
+const mFlash = ref<{ left: number; right: number } | null>(null)
 const mGaveUp = ref(false)
 
 function resetSub() {
@@ -54,27 +60,57 @@ onMounted(() => {
     router.replace({ name: 'train' })
     return
   }
-  exercises.value = buildExercises(session.set)
+  exercises.value = buildExercises(session.set, session.context)
   if (!exercises.value.length) router.replace({ name: 'train' })
 })
 
 const current = computed<Exercise | undefined>(() => exercises.value[idx.value])
 const total = computed(() => exercises.value.length)
 
+type PickKind = 'choice' | 'gap' | 'clickable'
+const isPick = (k: string): k is PickKind =>
+  k === 'choice' || k === 'gap' || k === 'clickable'
+
+function senseRef(ex: Exercise): SenseRef {
+  if (ex.kind === 'flashcard' || ex.kind === 'choice') {
+    const c = ex.card
+    return {
+      sense_id: c.word_sense_id,
+      text: c.text,
+      translation: c.translation,
+      transcription: c.transcription,
+      example: c.example,
+    }
+  }
+  if (ex.kind === 'gap' || ex.kind === 'clickable') {
+    const g = ex.gloss
+    return {
+      sense_id: g.word_sense_id,
+      text: g.text,
+      translation: g.translation,
+      transcription: g.transcription,
+      example: g.example,
+    }
+  }
+  throw new Error('senseRef: match has many senses')
+}
+
 function finishExercise(
-  outcomes: { card: TrainingCard; is_correct: boolean | null; hint: boolean }[],
+  outcomes: { ref: SenseRef; is_correct: boolean | null; hint: boolean }[],
 ) {
-  const kind = current.value!.kind
+  const c = current.value!
+  const exId = 'exercise_id' in c ? c.exercise_id : undefined
   for (const o of outcomes) {
     attempts.value.push({
       client_id: crypto.randomUUID(),
-      word_sense_id: o.card.word_sense_id,
-      exercise_type: kind,
+      word_sense_id: o.ref.sense_id,
+      exercise_id: exId,
+      exercise_type: c.kind,
       is_correct: o.is_correct,
       hint_used: o.hint,
     })
     review.value.push({
-      card: o.card,
+      ...o.ref,
       outcome: o.hint ? 'hint' : o.is_correct ? 'correct' : 'wrong',
     })
   }
@@ -87,33 +123,55 @@ function finishExercise(
 
 // --- flashcard ---
 function flashRate(known: boolean) {
-  const ex = current.value as FlashcardEx
-  finishExercise([{ card: ex.card, is_correct: known, hint: false }])
+  finishExercise([{ ref: senseRef(current.value!), is_correct: known, hint: false }])
 }
-type FlashcardEx = Extract<Exercise, { kind: 'flashcard' }>
 
-// --- choice ---
-function choicePick(opt: string) {
+// --- pick: choice / gap / clickable ---
+const pickOptions = computed<string[]>(() => {
+  const c = current.value
+  if (c?.kind === 'gap') return c.bank
+  if (c?.kind === 'choice' || c?.kind === 'clickable') return c.options
+  return []
+})
+const pickAnswer = computed<string>(() => {
+  const c = current.value
+  return c && isPick(c.kind) ? (c as { answer: string }).answer : ''
+})
+const peekText = computed(() =>
+  current.value && current.value.kind !== 'match'
+    ? senseRef(current.value).translation
+    : '',
+)
+const gapParts = computed(() =>
+  current.value?.kind === 'gap' ? current.value.text.split(/_{2,}/) : [],
+)
+const clickParts = computed(() => {
+  const c = current.value
+  if (c?.kind !== 'clickable') return null
+  const i = c.text.toLowerCase().indexOf(c.target.toLowerCase())
+  if (i < 0) return { pre: c.text, hit: '', post: '' }
+  return {
+    pre: c.text.slice(0, i),
+    hit: c.text.slice(i, i + c.target.length),
+    post: c.text.slice(i + c.target.length),
+  }
+})
+
+function pickChoose(opt: string) {
   if (picked.value || hintShown.value) return
   picked.value = opt
 }
-function choiceHint() {
-  if (picked.value) return
-  hintShown.value = true
-}
-function choiceNext() {
-  const ex = current.value as ChoiceExercise
-  if (hintShown.value) {
-    finishExercise([{ card: ex.card, is_correct: null, hint: true }])
-  } else {
+function pickNext() {
+  const ref = senseRef(current.value!)
+  if (hintShown.value) finishExercise([{ ref, is_correct: null, hint: true }])
+  else
     finishExercise([
-      { card: ex.card, is_correct: isChoiceCorrect(ex, picked.value!), hint: false },
+      { ref, is_correct: optIsCorrect(pickAnswer.value, picked.value!), hint: false },
     ])
-  }
 }
-function optClass(ex: ChoiceExercise, opt: string) {
+function pickClass(opt: string) {
   if (!picked.value && !hintShown.value) return ''
-  if (norm(opt) === norm(ex.answer)) return 'ok'
+  if (norm(opt) === norm(pickAnswer.value)) return 'ok'
   if (opt === picked.value) return 'bad'
   return ''
 }
@@ -144,8 +202,6 @@ function tapRight(i: number) {
     mLockedR.value = new Set([...mLockedR.value, i])
     mLeft.value = null
   } else {
-    // первая ошибка по этой карточке — засчитываем неверно (mErred навсегда),
-    // но подсветку гасим и даём сопоставить заново
     mErred.value = new Set([...mErred.value, id])
     mFlash.value = { left: id, right: i }
     setTimeout(() => {
@@ -160,11 +216,18 @@ function matchGiveUp() {
 }
 function matchNext() {
   const outcomes = matchEx.value.cards.map((card) => {
+    const ref: SenseRef = {
+      sense_id: card.word_sense_id,
+      text: card.text,
+      translation: card.translation,
+      transcription: card.transcription,
+      example: card.example,
+    }
     if (!mLocked.value.has(card.word_sense_id))
-      return { card, is_correct: null, hint: true }
+      return { ref, is_correct: null, hint: true }
     if (mErred.value.has(card.word_sense_id))
-      return { card, is_correct: false, hint: false }
-    return { card, is_correct: true as boolean | null, hint: false }
+      return { ref, is_correct: false, hint: false }
+    return { ref, is_correct: true as boolean | null, hint: false }
   })
   finishExercise(outcomes)
 }
@@ -209,7 +272,6 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
 
 <template>
   <main class="page">
-    <!-- прогон -->
     <template v-if="phase === 'run' && current">
       <div class="bar">
         <span>{{ idx + 1 }} / {{ total }}</span>
@@ -221,7 +283,6 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
       <section v-if="current.kind === 'flashcard'" class="ex">
         <p class="q">{{ current.card.text }}</p>
         <p v-if="current.card.transcription" class="tr">/{{ current.card.transcription }}/</p>
-
         <template v-if="!revealed">
           <button class="wide" @click="revealed = true">показать перевод</button>
         </template>
@@ -235,34 +296,39 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
         </template>
       </section>
 
-      <!-- choice -->
-      <section v-else-if="current.kind === 'choice'" class="ex">
-        <p class="q">{{ current.card.text }}</p>
-        <p v-if="current.card.transcription" class="tr">/{{ current.card.transcription }}/</p>
+      <!-- pick: choice / gap / clickable -->
+      <section v-else-if="isPick(current.kind)" class="ex">
+        <template v-if="current.kind === 'choice'">
+          <p class="q">{{ current.card.text }}</p>
+          <p v-if="current.card.transcription" class="tr">/{{ current.card.transcription }}/</p>
+        </template>
+        <template v-else-if="current.kind === 'gap'">
+          <p class="hint-line">вставьте слово</p>
+          <p class="sent">{{ gapParts[0] }}<span class="blank">?</span>{{ gapParts[1] }}</p>
+        </template>
+        <template v-else-if="current.kind === 'clickable' && clickParts">
+          <p class="hint-line">что значит выделенное слово?</p>
+          <p class="sent">{{ clickParts.pre }}<b class="hit">{{ clickParts.hit }}</b>{{ clickParts.post }}</p>
+        </template>
 
         <div class="opts">
           <button
-            v-for="o in current.options"
+            v-for="o in pickOptions"
             :key="o"
             class="opt-btn"
-            :class="optClass(current, o)"
+            :class="pickClass(o)"
             :disabled="!!picked || hintShown"
-            @click="choicePick(o)"
+            @click="pickChoose(o)"
           >
             {{ o }}
           </button>
         </div>
 
-        <button
-          v-if="!picked && !hintShown"
-          class="link"
-          @click="choiceHint"
-        >
+        <p v-if="hintShown" class="ans">{{ peekText }}</p>
+        <button v-if="!picked && !hintShown" class="link" @click="hintShown = true">
           подсмотреть перевод
         </button>
-        <button v-if="picked || hintShown" class="wide" @click="choiceNext">
-          дальше
-        </button>
+        <button v-if="picked || hintShown" class="wide" @click="pickNext">дальше</button>
       </section>
 
       <!-- match -->
@@ -330,11 +396,11 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
           <span class="rev-mark" :class="r.outcome">{{ mark[r.outcome] }}</span>
           <div class="rev-body">
             <div>
-              <b>{{ r.card.text }}</b>
-              <span v-if="r.card.transcription" class="tr"> /{{ r.card.transcription }}/</span>
-              — {{ r.card.translation }}
+              <b>{{ r.text }}</b>
+              <span v-if="r.transcription" class="tr"> /{{ r.transcription }}/</span>
+              — {{ r.translation }}
             </div>
-            <div v-if="r.card.example" class="muted small">{{ r.card.example }}</div>
+            <div v-if="r.example" class="muted small">{{ r.example }}</div>
           </div>
         </li>
       </ul>
@@ -376,13 +442,30 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
   font-weight: 700;
   margin: 0.5rem 0 0.25rem;
 }
+.sent {
+  font-size: 1.15rem;
+  line-height: 1.6;
+  margin: 0.25rem 0 1rem;
+}
+.blank {
+  display: inline-block;
+  min-width: 2.5rem;
+  text-align: center;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+.hit {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .tr {
   color: var(--muted);
   margin: 0 0 1rem;
 }
 .ans {
   font-size: 1.3rem;
-  margin: 1.5rem 0 0.5rem;
+  margin: 1.25rem 0 0.5rem;
 }
 .ex-sent {
   color: var(--muted);
@@ -390,7 +473,7 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
 }
 .hint-line {
   color: var(--muted);
-  margin: 0 0 1rem;
+  margin: 0 0 0.5rem;
 }
 
 .wide {

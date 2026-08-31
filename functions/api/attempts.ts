@@ -4,11 +4,18 @@ import type { AuthedData } from '../_lib/context'
 import type { Env } from '../_lib/env'
 import { readJson } from '../_lib/handler'
 import { error, json } from '../_lib/http'
-import { attempts, words, wordSenses, wordSenseProgress } from '../../db/schema'
+import {
+  attempts,
+  exercises,
+  words,
+  wordSenses,
+  wordSenseProgress,
+} from '../../db/schema'
 
 interface AttemptInput {
   client_id?: unknown
   word_sense_id?: unknown
+  exercise_id?: unknown
   exercise_type?: unknown
   is_correct?: unknown
   hint_used?: unknown
@@ -17,6 +24,7 @@ interface AttemptInput {
 interface CleanAttempt {
   clientId: string
   wordSenseId: number
+  exerciseId: number | null
   exerciseType: string
   isCorrect: boolean | null
   hintUsed: boolean
@@ -30,9 +38,11 @@ function clean(a: AttemptInput): CleanAttempt | null {
   if (!clientId || clientId.length > 100) return null
   if (!Number.isInteger(wordSenseId) || wordSenseId <= 0) return null
   if (!exerciseType) return null
+  const exId = Number(a.exercise_id)
   return {
     clientId,
     wordSenseId,
+    exerciseId: Number.isInteger(exId) && exId > 0 ? exId : null,
     exerciseType,
     isCorrect: a.is_correct === null || a.is_correct === undefined ? null : !!a.is_correct,
     hintUsed: !!a.hint_used,
@@ -81,6 +91,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         userId: uid,
         clientId: a.clientId,
         wordSenseId: a.wordSenseId,
+        exerciseId: a.exerciseId,
         exerciseType: a.exerciseType,
         isCorrect: a.isCorrect,
         hintUsed: a.hintUsed,
@@ -123,6 +134,20 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
           lastTrainedAt: sql`excluded.last_trained_at`,
         },
       })
+  }
+
+  // пройденные без ошибок сгенерированные упражнения в запасе не держим (PLAN §5)
+  const doneExIds = [
+    ...new Set(
+      rows
+        .filter((a) => a.exerciseId != null && a.isCorrect === true)
+        .map((a) => a.exerciseId as number),
+    ),
+  ]
+  if (doneExIds.length) {
+    await db
+      .delete(exercises)
+      .where(and(eq(exercises.userId, uid), inArray(exercises.id, doneExIds)))
   }
 
   return json({
