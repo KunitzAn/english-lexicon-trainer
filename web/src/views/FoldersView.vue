@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import Sparkles from '@/components/Sparkles.vue'
 import type { FolderRow } from '@/lib/types'
 
@@ -43,6 +44,7 @@ async function create() {
 }
 
 onMounted(load)
+useRefreshOnFocus(load)
 </script>
 
 <template>

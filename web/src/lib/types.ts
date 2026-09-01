@@ -142,6 +142,18 @@ export interface QuotaInfo {
   enabled: boolean
 }
 
+// --- этап 5: разбор сессии (сохраняется на сервер) ---
+
+export interface SessionSenseRef {
+  sense_id: number
+  text: string
+  translation: string
+  transcription: string | null
+  example: string | null
+}
+export type SessionOutcome = 'correct' | 'wrong' | 'hint'
+export type SessionReviewRow = SessionSenseRef & { outcome: SessionOutcome }
+
 // --- этап 6: прогресс (главная) ---
 
 export interface StatsInfo {

@@ -2,33 +2,40 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import { endSession, session } from '@/lib/session'
+import {
+  clearServerSession,
+  endSession,
+  fetchServerSession,
+  saveServerSession,
+  session,
+  type PersistedSession,
+} from '@/lib/session'
 import {
   buildExercises,
   optIsCorrect,
   type Exercise,
   type MatchExercise,
 } from '@/lib/exercises'
-import type { AttemptDraft } from '@/lib/types'
+import type {
+  AttemptDraft,
+  SessionReviewRow,
+  SessionSenseRef,
+} from '@/lib/types'
 import Sparkles from '@/components/Sparkles.vue'
 
 const router = useRouter()
 const norm = (s: string) => s.trim().toLowerCase()
 
+type SenseRef = SessionSenseRef
+
 const exercises = ref<Exercise[]>([])
 const idx = ref(0)
-const phase = ref<'run' | 'summary'>('run')
+const phase = ref<'loading' | 'resume' | 'run' | 'summary'>('loading')
+/** Снимок с сервера, ждущий выбора «продолжить / начать заново». */
+const pending = ref<PersistedSession | null>(null)
 
 const attempts = ref<AttemptDraft[]>([])
-type Outcome = 'correct' | 'wrong' | 'hint'
-interface SenseRef {
-  sense_id: number
-  text: string
-  translation: string
-  transcription: string | null
-  example: string | null
-}
-const review = ref<(SenseRef & { outcome: Outcome })[]>([])
+const review = ref<SessionReviewRow[]>([])
 
 const saving = ref(false)
 const saveError = ref<string | null>(null)
@@ -56,14 +63,56 @@ function resetSub() {
   mGaveUp.value = false
 }
 
-onMounted(() => {
-  if (!session.set) {
-    router.replace({ name: 'train' })
+/** Снимок текущего хода для сохранения на сервер. */
+function snapshot(): PersistedSession {
+  return {
+    exercises: exercises.value,
+    idx: idx.value,
+    attempts: attempts.value,
+    review: review.value,
+    format: session.format,
+  }
+}
+function persist() {
+  if (phase.value === 'run') saveServerSession(snapshot())
+}
+
+onMounted(async () => {
+  // свежий старт из «Тренировки»
+  if (session.set) {
+    exercises.value = buildExercises(session.set, session.context, session.format)
+    if (!exercises.value.length) {
+      router.replace({ name: 'train' })
+      return
+    }
+    phase.value = 'run'
+    persist()
     return
   }
-  exercises.value = buildExercises(session.set, session.context, session.format)
-  if (!exercises.value.length) router.replace({ name: 'train' })
+  // перезагрузка / другое устройство — спросить сервер
+  const saved = await fetchServerSession()
+  if (saved) {
+    pending.value = saved
+    phase.value = 'resume'
+  } else {
+    router.replace({ name: 'train' })
+  }
 })
+
+function resumeSaved() {
+  const s = pending.value!
+  exercises.value = s.exercises
+  idx.value = Math.min(s.idx, s.exercises.length - 1)
+  attempts.value = s.attempts
+  review.value = s.review
+  session.format = s.format
+  pending.value = null
+  phase.value = 'run'
+}
+function restartFresh() {
+  clearServerSession()
+  router.replace({ name: 'train' })
+}
 
 const current = computed<Exercise | undefined>(() => exercises.value[idx.value])
 const total = computed(() => exercises.value.length)
@@ -119,6 +168,7 @@ function finishExercise(
   else {
     idx.value++
     resetSub()
+    persist()
   }
 }
 
@@ -246,6 +296,8 @@ async function save() {
       method: 'POST',
       body: JSON.stringify({ attempts: attempts.value }),
     })
+    // попытки на сервере — серверный снимок сессии больше не нужен
+    clearServerSession()
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -273,7 +325,28 @@ const pad = (n: number) => String(n).padStart(2, '0')
 
 <template>
   <main class="page">
-    <template v-if="phase === 'run' && current">
+    <p v-if="phase === 'loading'" class="muted">загрузка…</p>
+
+    <!-- незаконченная сессия: продолжить / начать заново -->
+    <section v-else-if="phase === 'resume' && pending" class="resume">
+      <Sparkles
+        :spots="[
+          { pos: { top: '40px', right: '30px' }, size: 13, color: '#ffc23d', delay: 0 },
+          { pos: { top: '72px', right: '66px' }, size: 9, color: '#8fa8ff', delay: 1 },
+        ]"
+      />
+      <p class="label">незаконченная тренировка</p>
+      <p class="resume-where mono">
+        остановились на {{ Math.min(pending.idx + 1, pending.exercises.length) }} /
+        {{ pending.exercises.length }}
+      </p>
+      <div class="frame">
+        <button class="primary wide" @click="resumeSaved">продолжить</button>
+      </div>
+      <button class="wide" @click="restartFresh">начать заново</button>
+    </section>
+
+    <template v-else-if="phase === 'run' && current">
       <div class="bar">
         <span class="mono">{{ pad(idx + 1) }} / {{ pad(total) }}</span>
         <button class="link" @click="finalize">завершить</button>
@@ -459,6 +532,26 @@ const pad = (n: number) => String(n).padStart(2, '0')
 </template>
 
 <style scoped>
+.resume {
+  margin-top: 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  text-align: center;
+}
+.resume .label {
+  display: block;
+}
+.resume-where {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 1rem;
+}
+.resume .wide {
+  width: 100%;
+  padding: 0.9rem;
+}
+
 .bar {
   display: flex;
   justify-content: space-between;

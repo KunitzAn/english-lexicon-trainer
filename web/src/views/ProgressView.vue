@@ -3,6 +3,8 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { auth } from '@/auth'
+import { clearServerSession, fetchServerSession } from '@/lib/session'
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import Sparkles from '@/components/Sparkles.vue'
 import type { StatsInfo } from '@/lib/types'
 
@@ -10,6 +12,29 @@ const router = useRouter()
 const stats = ref<StatsInfo | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+/** Незаконченная тренировка (для баннера «продолжить / сбросить»). */
+const unfinished = ref<{ idx: number; total: number } | null>(null)
+
+async function checkUnfinished() {
+  const s = await fetchServerSession()
+  unfinished.value = s
+    ? { idx: Math.min(s.idx + 1, s.exercises.length), total: s.exercises.length }
+    : null
+}
+
+async function refreshStats() {
+  try {
+    stats.value = await api<StatsInfo>('/stats')
+  } catch {
+    /* тихо — на экране уже есть данные */
+  }
+}
+
+function dropUnfinished() {
+  clearServerSession()
+  unfinished.value = null
+}
 
 onMounted(async () => {
   try {
@@ -19,6 +44,12 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+  checkUnfinished()
+})
+
+useRefreshOnFocus(() => {
+  refreshStats()
+  checkUnfinished()
 })
 
 const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%')
@@ -35,6 +66,19 @@ const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%'
 
     <h1>привет{{ auth.user?.name ? ', ' + auth.user.name : '' }}</h1>
     <p class="sub muted">твой прогресс в лексике</p>
+
+    <div v-if="unfinished" class="frame resume-banner-frame">
+      <div class="resume-banner">
+        <div class="rb-text">
+          <span class="label">незаконченная тренировка</span>
+          <span class="mono rb-where">{{ unfinished.idx }} / {{ unfinished.total }}</span>
+        </div>
+        <div class="rb-acts">
+          <button class="primary" @click="router.push('/train/run')">продолжить</button>
+          <button class="ghost" @click="dropUnfinished">сбросить</button>
+        </div>
+      </div>
+    </div>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
@@ -88,6 +132,38 @@ const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%'
 .sub {
   margin: -0.4rem 0 1.5rem;
   font-size: 0.9rem;
+}
+
+.resume-banner-frame {
+  margin-bottom: 1.25rem;
+}
+.resume-banner {
+  background: var(--card);
+  border-radius: calc(var(--r-xl) - 2px);
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.rb-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.rb-where {
+  font-size: 0.9rem;
+  color: var(--fg);
+  font-weight: 700;
+}
+.rb-acts {
+  display: flex;
+  gap: 0.4rem;
+}
+.rb-acts .primary {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
 }
 
 .grid {

@@ -195,6 +195,31 @@ export const quotaUsage = pgTable('quota_usage', {
   count: integer('count').notNull().default(0),
 })
 
+/**
+ * Этап 5. Активная сессия тренировки — чтобы пережить перезагрузку и переезд
+ * на другое устройство. Одна активная строка на юзера (при старте новой старую
+ * удаляем; при завершении удаляем тоже — историю не храним, для неё `attempts`).
+ * `state` — весь собранный набор: перемешанные упражнения, позиция, буфер
+ * ответов (с готовыми `client_id`), буфер разбора, формат.
+ */
+export const trainingSessions = pgTable(
+  'training_sessions',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    state: jsonb('state').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex('training_sessions_user_uniq').on(t.userId)],
+)
+
 /** Мини-лог генераций: какие :free-модели реально отдают валидный JSON. */
 export const generationLog = pgTable('generation_log', {
   id: serial('id').primaryKey(),
@@ -215,3 +240,4 @@ export type WordSense = typeof wordSenses.$inferSelect
 export type Attempt = typeof attempts.$inferSelect
 export type WordSenseProgress = typeof wordSenseProgress.$inferSelect
 export type Exercise = typeof exercises.$inferSelect
+export type TrainingSession = typeof trainingSessions.$inferSelect

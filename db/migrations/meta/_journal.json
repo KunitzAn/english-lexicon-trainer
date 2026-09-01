@@ -43,6 +43,13 @@
       "when": 1788203002215,
       "tag": "0005_clean_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788296138149,
+      "tag": "0006_smooth_nightmare",
+      "breakpoints": true
     }
   ]
 }

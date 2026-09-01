@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import type { WordListItem } from '@/lib/types'
 
 const route = useRoute()
@@ -69,6 +70,7 @@ watch(
   },
 )
 onMounted(load)
+useRefreshOnFocus(load)
 </script>
 
 <template>

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import type { FolderRow, WordListItem } from '@/lib/types'
 
 const router = useRouter()
@@ -19,8 +20,8 @@ const bulkFolderId = ref<number | null>(null)
 const busy = ref(false)
 const notice = ref<string | null>(null)
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [w, f] = await Promise.all([
       api<{ words: WordListItem[] }>('/words'),
@@ -30,7 +31,7 @@ async function load() {
     folders.value = f.folders
     if (!bulkFolderId.value && f.folders[0]) bulkFolderId.value = f.folders[0].id
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    if (!silent) error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
   }
@@ -83,7 +84,10 @@ async function bulk(op: 'add' | 'remove') {
   }
 }
 
-onMounted(load)
+onMounted(() => load())
+useRefreshOnFocus(() => {
+  if (!selected.size && !busy.value) load(true)
+})
 </script>
 
 <template>
