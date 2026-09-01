@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { FolderRow, WordListItem } from '@/lib/types'
+
+const router = useRouter()
 
 const words = ref<WordListItem[]>([])
 const folders = ref<FolderRow[]>([])
@@ -82,10 +85,10 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <p><router-link to="/">← темы</router-link></p>
-    <div class="row">
-      <h1>Все слова</h1>
-      <router-link to="/words/add">+ слово</router-link>
+    <button class="ghost back" @click="router.push('/')">← темы</button>
+    <div class="row head">
+      <h1>все слова</h1>
+      <button class="ghost" @click="router.push('/words/add')">＋ слово</button>
     </div>
 
     <p v-if="error" class="err">{{ error }}</p>
@@ -110,14 +113,19 @@ onMounted(load)
 
       <ul class="words">
         <li v-for="w in words" :key="w.id" class="wrow">
-          <input type="checkbox" :checked="selected.has(w.id)" @change="toggle(w.id)" />
-          <div class="wbody">
+          <input
+            type="checkbox"
+            class="wcheck"
+            :checked="selected.has(w.id)"
+            @change="toggle(w.id)"
+          />
+          <router-link :to="`/words/${w.id}`" class="wbody">
             <div class="wmain">
-              <router-link :to="`/words/${w.id}`" class="wtext mono">{{ w.text }}</router-link>
+              <span class="wtext mono">{{ w.text }}</span>
               <span class="wtr">{{ w.translations.join(', ') }}</span>
             </div>
             <div class="wmeta">{{ folderNames(w.folder_ids) }}</div>
-          </div>
+          </router-link>
         </li>
         <li v-if="!words.length" class="muted">словарь пуст</li>
       </ul>
@@ -126,6 +134,13 @@ onMounted(load)
 </template>
 
 <style scoped>
+.back {
+  margin: 0 0 0.75rem;
+}
+.head {
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
 .bulkbar {
   display: flex;
   flex-wrap: wrap;
@@ -151,17 +166,31 @@ onMounted(load)
   list-style: none;
   padding: 0;
   margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 .wrow {
   display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--line);
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.wcheck {
+  align-self: center;
+  width: 20px;
+  height: 20px;
 }
 .wbody {
   flex: 1;
   min-width: 0;
+  padding: 0.8rem 1rem;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  color: var(--fg);
+}
+.wbody:hover {
+  filter: brightness(1.1);
+  color: var(--fg);
 }
 .wmain {
   display: flex;
@@ -177,8 +206,8 @@ onMounted(load)
   color: var(--muted);
 }
 .wmeta {
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin-top: 0.15rem;
+  color: var(--faint);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
 }
 </style>

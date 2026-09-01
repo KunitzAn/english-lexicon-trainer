@@ -63,9 +63,9 @@ onMounted(load)
         </svg>
       </button>
     </div>
-    <p class="all-link">
-      <router-link to="/words">все слова →</router-link>
-    </p>
+    <div class="all-link">
+      <button class="ghost" @click="router.push('/words')">все слова →</button>
+    </div>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
@@ -105,11 +105,6 @@ onMounted(load)
 .all-link {
   text-align: center;
   margin: 0.75rem 0 1.5rem;
-}
-.all-link a {
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-transform: lowercase;
 }
 
 .themes {

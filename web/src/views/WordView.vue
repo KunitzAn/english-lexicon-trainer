@@ -125,7 +125,7 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <p><router-link to="/words">← все слова</router-link></p>
+    <button class="ghost back" @click="router.push('/words')">← все слова</button>
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
@@ -193,6 +193,9 @@ onMounted(load)
 </template>
 
 <style scoped>
+.back {
+  margin: 0 0 0.75rem;
+}
 .row-btns {
   display: flex;
   gap: 0.5rem;

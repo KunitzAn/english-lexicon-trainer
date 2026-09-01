@@ -194,6 +194,23 @@ a:hover {
   color: var(--fg);
 }
 
+/* кликабельная строка целиком */
+.row-link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  color: var(--fg);
+}
+.row-link:hover {
+  filter: brightness(1.1);
+  color: var(--fg);
+}
+
 .add {
   display: flex;
   gap: 0.5rem;
@@ -202,7 +219,7 @@ a:hover {
 
 /* ---- поля ввода ---- */
 
-input:not([type='checkbox']):not([type='radio']),
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
 select,
 textarea {
   width: 100%;
@@ -231,8 +248,51 @@ input[type='radio'] {
 }
 
 input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: var(--hero-a);
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    90deg,
+    var(--hero-a) 0 var(--pct, 50%),
+    var(--raise) var(--pct, 50%) 100%
+  );
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: var(--r-xs);
+  background: linear-gradient(160deg, #ffffff, #cfeee6);
+  box-shadow: 0 2px 8px rgba(34, 217, 179, 0.5);
+}
+input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--raise);
+}
+input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--hero-a);
+}
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: linear-gradient(160deg, #ffffff, #cfeee6);
+  box-shadow: 0 2px 8px rgba(34, 217, 179, 0.5);
 }
 
 /* ---- кнопки ---- */
@@ -272,6 +332,20 @@ button.link {
 button.link:hover:not(:disabled) {
   filter: none;
   color: var(--link-hover);
+}
+
+/* компактная навигационная кнопка (назад / переходы) */
+button.ghost {
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--r-sm);
+}
+button.ghost:hover:not(:disabled) {
+  filter: brightness(1.15);
+  color: var(--fg);
 }
 
 /* стеклянная главная кнопка */

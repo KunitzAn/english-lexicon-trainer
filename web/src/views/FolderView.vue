@@ -70,7 +70,7 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <p class="back"><router-link to="/">← темы</router-link></p>
+    <button class="ghost back" @click="router.push('/')">← темы</button>
 
     <div class="row head">
       <h1>{{ name || '…' }}</h1>
@@ -80,29 +80,31 @@ onMounted(load)
       </span>
     </div>
 
-    <p class="add-line">
-      <router-link :to="`/words/add?folder=${folderId}`">＋ слово в эту тему</router-link>
-    </p>
+    <button class="ghost add-btn" @click="router.push(`/words/add?folder=${folderId}`)">
+      ＋ слово в эту тему
+    </button>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
-    <ul v-else class="list">
+    <ul v-else class="rows">
       <li v-for="w in words" :key="w.id">
-        <router-link :to="`/words/${w.id}`">
-          <span class="mono">{{ w.text }}</span>
-          <span v-if="w.is_phrase" class="muted small"> · фраза</span>
+        <router-link :to="`/words/${w.id}`" class="row-link">
+          <span class="w-main">
+            <span class="mono">{{ w.text }}</span>
+            <span v-if="w.is_phrase" class="muted small"> · фраза</span>
+          </span>
+          <span class="muted w-tr">{{ w.translations.join(', ') }}</span>
         </router-link>
-        <span class="muted">{{ w.translations.join(', ') }}</span>
       </li>
-      <li v-if="!words.length" class="muted">в теме пока нет слов</li>
+      <li v-if="!words.length" class="muted empty">в теме пока нет слов</li>
     </ul>
   </main>
 </template>
 
 <style scoped>
 .back {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.75rem;
 }
 .head {
   align-items: flex-start;
@@ -114,16 +116,26 @@ onMounted(load)
   gap: 0.2rem;
   flex: none;
 }
-.add-line {
+.add-btn {
   margin: 0.25rem 0 1rem;
 }
-.add-line a {
-  font-weight: 700;
-  text-transform: lowercase;
-}
-.list li a {
+.rows {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
   display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.w-main {
+  min-width: 0;
+}
+.w-tr {
+  flex: 1;
+  text-align: right;
+  min-width: 0;
+}
+.empty {
+  padding: 0.7rem 0;
 }
 </style>

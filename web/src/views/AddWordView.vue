@@ -139,8 +139,8 @@ async function save() {
 
 <template>
   <main class="page">
-    <p><router-link to="/">← темы</router-link></p>
-    <h1>Новое слово</h1>
+    <button class="ghost back" @click="router.push('/')">← темы</button>
+    <h1>новое слово</h1>
 
     <form class="add" @submit.prevent="lookup">
       <input v-model="text" placeholder="английское слово или фраза" />
@@ -203,6 +203,9 @@ async function save() {
 </template>
 
 <style scoped>
+.back {
+  margin: 0 0 0.75rem;
+}
 .sense-draft {
   display: grid;
   gap: 0.25rem;

@@ -38,6 +38,11 @@ const sliderMax = computed(() =>
   available.value > 0 ? Math.min(HARD_MAX, available.value) : HARD_MAX,
 )
 const sliderMin = computed(() => Math.min(5, sliderMax.value))
+/** Заполнение ползунка 0..100% — чтобы дотягивался до краёв точно. */
+const pct = computed(() => {
+  const span = sliderMax.value - sliderMin.value
+  return span <= 0 ? 100 : ((count.value - sliderMin.value) / span) * 100
+})
 
 watch([sliderMax, sliderMin], () => {
   if (count.value > sliderMax.value) count.value = sliderMax.value
@@ -124,7 +129,7 @@ async function start() {
       ]"
     />
 
-    <p class="back"><router-link to="/">← темы</router-link></p>
+    <button class="ghost back" @click="router.push('/')">← темы</button>
     <h1>тренировка</h1>
     <p v-if="quota?.enabled" class="mono quota">ии сегодня · {{ quota.left }}/{{ quota.limit }}</p>
 
@@ -172,7 +177,14 @@ async function start() {
           доступно {{ available }}
         </span>
       </div>
-      <input type="range" :min="sliderMin" :max="sliderMax" step="1" v-model.number="count" />
+      <input
+        type="range"
+        :min="sliderMin"
+        :max="sliderMax"
+        step="1"
+        v-model.number="count"
+        :style="{ '--pct': pct + '%' }"
+      />
     </div>
 
     <div class="frame cta-frame">
