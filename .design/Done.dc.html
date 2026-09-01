@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+  <style>
+    body { margin: 0; background: #111310; color: #ece7dc; font-family: system-ui, -apple-system, sans-serif; }
+    body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+    a { color: #7db0ff; } a:hover { color: #a3c8ff; }
+    * { box-sizing: border-box; }
+    .disp { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: lowercase; color: #6f6d61; }
+    @keyframes sheen { to { background-position: 240% 0; } }
+    .frame { border-radius: 17px; padding: 1.8px;
+      background: linear-gradient(110deg,#2b3027 14%,#ffe9a8 30%,#b6f04a 42%,#22d9b3 54%,#8fa8ff 66%,#c98bff 76%,#2b3027 88%);
+      background-size: 260% 100%; animation: sheen 3.2s linear infinite; }
+    @keyframes twinkle { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+    .tw { animation: twinkle 2.6s ease-in-out infinite; }
+  </style>
+</helmet>
+
+<div style="max-width: 390px; margin: 0 auto; padding: 22px 18px 40px; position: relative;">
+
+  <svg class="tw" style="position:absolute; top:22px; right:20px; animation-delay:0s" width="18" height="18" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ffc23d"/></svg>
+  <svg class="tw" style="position:absolute; top:54px; right:64px; animation-delay:.7s" width="11" height="11" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#b6f04a"/></svg>
+  <svg class="tw" style="position:absolute; top:96px; right:32px; animation-delay:1.5s" width="13" height="13" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ff6ba6"/></svg>
+  <svg class="tw" style="position:absolute; top:14px; left:120px; animation-delay:2.2s" width="10" height="10" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#8fa8ff"/></svg>
+
+  <div class="label" style="margin-bottom: 4px;">готово</div>
+
+  <!-- headline score in sparkling frame -->
+  <div class="frame" style="margin-bottom: 10px;">
+    <div style="border-radius: 15px; background: #17190f; padding: 16px 18px; display: flex; align-items: flex-end; gap: 4px; overflow: hidden;">
+      <span class="mono" style="font-weight: 700; font-size: 84px; line-height: 0.78; color: #b6f04a;">9</span>
+      <span class="mono" style="font-weight: 500; font-size: 26px; line-height: 1.6; color: #6f6d61;">/12</span>
+      <div style="flex: 1;"></div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding-bottom: 8px;">
+        <svg class="tw" width="20" height="20" viewBox="0 0 24 24" fill="none" style="animation-delay:.3s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ffc23d"/></svg>
+        <svg class="tw" width="12" height="12" viewBox="0 0 24 24" fill="none" style="animation-delay:1.1s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#22d9b3"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="mono" style="font-size: 12px; color: #8c8a7c; margin-bottom: 24px;">
+    <span style="color:#b6f04a;">верно 9</span> · <span style="color:#ff6ba6;">неверно 2</span> · подсказок 1
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 26px;">
+    <div style="background: #1a1d18; border-radius: 12px; padding: 14px 16px; position: relative;">
+      <div class="mono" style="font-weight: 700; font-size: 30px; color: #b6f04a; line-height: 1;">+3</div>
+      <div class="label" style="margin-top: 4px;">выучено</div>
+      <svg class="tw" width="12" height="12" viewBox="0 0 24 24" fill="none" style="position:absolute; top:10px; right:12px; animation-delay:.6s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#8ce23f"/></svg>
+    </div>
+    <div style="background: #2a2110; border-radius: 12px; padding: 14px 16px; position: relative;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3c1 3-1 4-1 6a3 3 0 0 0 6 0c0-1 0-2-.5-3 2 2 3.5 4.5 3.5 7.5a9 9 0 1 1-18 0C4.5 6 9 5 12 3Z" fill="#ffc23d"/></svg>
+        <span class="mono" style="font-weight: 700; font-size: 30px; color: #ffc23d; line-height: 1;">6</span>
+      </div>
+      <div class="label" style="margin-top: 4px; color: #9a7a3a;">дней подряд</div>
+      <svg class="tw" width="10" height="10" viewBox="0 0 24 24" fill="none" style="position:absolute; top:12px; right:12px; animation-delay:1.7s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ffe9a8"/></svg>
+    </div>
+  </div>
+
+  <div class="label" style="margin-bottom: 10px;">разбор</div>
+  <div style="display: flex; flex-direction: column;">
+    <div style="display: flex; gap: 12px; padding: 12px 2px; border-bottom: 1px solid #23261f;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none; margin-top:3px;"><path d="m5 13 4 4L19 7" stroke="#b6f04a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="min-width: 0;">
+        <div style="font-size: 14px;"><b class="mono" style="font-weight:700;">candid</b> <span class="mono" style="color:#6f6d61; font-size:12px;">/ˈkæn.dɪd/</span> <span style="color:#8c8a7c;">— откровенный</span></div>
+        <div style="font-size: 12.5px; color: #6f6d61; margin-top: 3px;">She answered with disarming candour.</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; padding: 12px 2px; border-bottom: 1px solid #23261f;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none; margin-top:3px;"><path d="M6 6l12 12M18 6L6 18" stroke="#ff6ba6" stroke-width="2.6" stroke-linecap="round"/></svg>
+      <div style="min-width: 0;">
+        <div style="font-size: 14px;"><b class="mono" style="font-weight:700;">austere</b> <span style="color:#8c8a7c;">— аскетичный</span></div>
+        <div style="font-size: 12.5px; color: #6f6d61; margin-top: 3px;">The monk's austere lifestyle permitted nothing spare.</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; padding: 12px 2px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none; margin-top:3px;"><circle cx="12" cy="12" r="9" stroke="#6f6d61" stroke-width="2.2"/><path d="M12 8v4l3 2" stroke="#6f6d61" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <div style="min-width: 0;">
+        <div style="font-size: 14px;"><b class="mono" style="font-weight:700;">meticulous</b> <span style="color:#8c8a7c;">— дотошный</span></div>
+        <div style="font-size: 12.5px; color: #6f6d61; margin-top: 3px;">His meticulous notes left nothing unchecked.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 8px; margin-top: 24px;">
+    <button class="disp" style="flex: 1; border: none; cursor: pointer; background: #2b3027; color: #ece7dc;
+      font-weight: 800; font-size: 15px; text-transform: lowercase; padding: 15px; border-radius: 12px;">к темам</button>
+    <div class="frame" style="flex: 1; border-radius: 14px;">
+      <button class="disp" style="width: 100%; border: none; cursor: pointer; color: #04231d; font-weight: 800; font-size: 15px;
+        text-transform: lowercase; padding: 15px; border-radius: 12.5px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 42%), linear-gradient(160deg,#22d9b3,#12b090);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);">ещё</button>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":880}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

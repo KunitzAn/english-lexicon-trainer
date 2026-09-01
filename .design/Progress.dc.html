@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+  <style>
+    body { margin: 0; background: #111310; color: #ece7dc; font-family: system-ui, -apple-system, sans-serif; }
+    body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+    a { color: #7db0ff; } a:hover { color: #a3c8ff; }
+    * { box-sizing: border-box; }
+    .disp { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: lowercase; color: #6f6d61; }
+    @keyframes sheen { to { background-position: 240% 0; } }
+    .frame { border-radius: 16px; padding: 1.8px;
+      background: linear-gradient(110deg,#2b3027 14%,#ffe9a8 30%,#b6f04a 42%,#22d9b3 54%,#8fa8ff 66%,#c98bff 76%,#2b3027 88%);
+      background-size: 260% 100%; animation: sheen 3.3s linear infinite; }
+    @keyframes twinkle { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+    .tw { animation: twinkle 2.7s ease-in-out infinite; }
+  </style>
+</helmet>
+
+<div style="max-width: 390px; margin: 0 auto; padding: 20px 18px 40px; position: relative;">
+
+  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 18px;">
+    <a href="#" style="font-weight: 700; font-size: 15px; color: #6f6d61;">←</a>
+    <h1 class="disp" style="font-size: 30px; font-weight: 800; margin: 0; letter-spacing: -0.03em; text-transform: lowercase; line-height: 1;">прогресс</h1>
+  </div>
+
+  <!-- headline number in a sparkling frame + sparkle cluster -->
+  <div style="display: flex; align-items: stretch; gap: 10px; margin-bottom: 8px;">
+    <div class="frame" style="flex: 1; min-width: 0;">
+      <div style="border-radius: 14px; background: #17190f; padding: 12px 16px 14px;">
+        <div class="label" style="margin-bottom: 2px;">значений выучено</div>
+        <div style="display: flex; align-items: flex-end; gap: 6px; overflow: hidden; height: 60px;">
+          <span class="mono" style="font-weight: 700; font-size: 72px; line-height: 0.8; color: #22d9b3;">74</span>
+          <span class="mono" style="font-weight: 500; font-size: 22px; line-height: 1.7; color: #6f6d61;">/132</span>
+        </div>
+      </div>
+    </div>
+    <div style="width: 76px; flex: none; position: relative;">
+      <svg style="position:absolute; inset:0; margin:auto;" width="70" height="86" viewBox="0 0 90 110" fill="none">
+        <defs>
+          <radialGradient id="pg1" cx="0.35" cy="0.3" r="0.75"><stop offset="0" stop-color="#7ff0d8"/><stop offset="1" stop-color="#12a488"/></radialGradient>
+          <radialGradient id="pg2" cx="0.35" cy="0.3" r="0.75"><stop offset="0" stop-color="#a9c0ff"/><stop offset="1" stop-color="#4560d8"/></radialGradient>
+          <radialGradient id="pg3" cx="0.35" cy="0.3" r="0.75"><stop offset="0" stop-color="#d7b3ff"/><stop offset="1" stop-color="#8b3fe0"/></radialGradient>
+        </defs>
+        <rect x="8" y="10" width="40" height="30" rx="6" fill="url(#pg1)"/>
+        <circle cx="58" cy="52" r="20" fill="url(#pg2)"/>
+        <path d="M30 96c-8-13-30-11-30 6 0 14 22 26 30 32 8-6 30-18 30-32 0-17-22-19-30-6Z" fill="url(#pg3)" transform="translate(6 -14) scale(0.7)"/>
+        <ellipse cx="18" cy="18" rx="7" ry="5" fill="#fff" opacity="0.5"/>
+      </svg>
+      <svg class="tw" style="position:absolute; top:-6px; right:0; animation-delay:0s" width="16" height="16" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ffc23d"/></svg>
+      <svg class="tw" style="position:absolute; bottom:2px; left:-4px; animation-delay:1.2s" width="11" height="11" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#b6f04a"/></svg>
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3c1 3-1 4-1 6a3 3 0 0 0 6 0c0-1 0-2-.5-3 2 2 3.5 4.5 3.5 7.5a9 9 0 1 1-18 0C4.5 6 9 5 12 3Z" fill="#ffc23d"/></svg>
+    <span class="mono" style="font-weight: 700; font-size: 13px; color: #ffc23d;">6 дней подряд</span>
+  </div>
+  <div style="height: 6px; background: #2b3027; border-radius: 999px; margin-bottom: 24px;">
+    <div style="height: 100%; width: 56%; border-radius: 999px; background: linear-gradient(90deg,#22d9b3,#6a8cff); box-shadow: 0 0 12px rgba(34,217,179,0.5);"></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 7px; margin-bottom: 26px;">
+    <div style="background: #1a1d18; border-radius: 10px; padding: 12px 10px;">
+      <div class="mono" style="font-weight: 700; font-size: 22px; color: #b6f04a;">74</div>
+      <div class="label" style="margin-top: 2px;">выучено</div>
+    </div>
+    <div style="background: #1a1d18; border-radius: 10px; padding: 12px 10px;">
+      <div class="mono" style="font-weight: 700; font-size: 22px; color: #ffc23d;">39</div>
+      <div class="label" style="margin-top: 2px;">в процессе</div>
+    </div>
+    <div style="background: #1a1d18; border-radius: 10px; padding: 12px 10px;">
+      <div class="mono" style="font-weight: 700; font-size: 22px; color: #8c8a7c;">19</div>
+      <div class="label" style="margin-top: 2px;">новых</div>
+    </div>
+  </div>
+
+  <div class="label" style="margin-bottom: 12px;">активность · 4 недели</div>
+  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 26px;">
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #1a1d18;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.3);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #1a1d18;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.3);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.3);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #1a1d18;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #22d9b3;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #1a1d18;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.3);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #1a1d18;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.3);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.6);"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: #22d9b3;"></div>
+    <div style="aspect-ratio: 1; border-radius: 3px; background: rgba(34,217,179,0.85);"></div>
+  </div>
+
+  <div class="label" style="margin-bottom: 10px;">стоит повторить</div>
+  <div style="display: flex; flex-direction: column; gap: 7px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; background: #1a1d18; border-radius: 11px; padding: 12px 15px;">
+      <div><b class="mono" style="font-weight:700; font-size:13.5px;">nuance</b> <span style="color:#6f6d61; font-size:12.5px;">— нюанс</span></div>
+      <span class="mono" style="font-weight: 700; font-size: 12px; color: #ff6ba6;">33%</span>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; background: #1a1d18; border-radius: 11px; padding: 12px 15px;">
+      <div><b class="mono" style="font-weight:700; font-size:13.5px;">tenuous</b> <span style="color:#6f6d61; font-size:12.5px;">— шаткий</span></div>
+      <span class="mono" style="font-weight: 700; font-size: 12px; color: #ff6ba6;">40%</span>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; background: #1a1d18; border-radius: 11px; padding: 12px 15px;">
+      <div><b class="mono" style="font-weight:700; font-size:13.5px;">candour</b> <span style="color:#6f6d61; font-size:12.5px;">— прямота</span></div>
+      <span class="mono" style="font-weight: 700; font-size: 11px; color: #ffc23d;">12 дн. назад</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":960}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

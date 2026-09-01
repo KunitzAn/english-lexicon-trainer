@@ -10,6 +10,7 @@ import {
   type MatchExercise,
 } from '@/lib/exercises'
 import type { AttemptDraft } from '@/lib/types'
+import Sparkles from '@/components/Sparkles.vue'
 
 const router = useRouter()
 const norm = (s: string) => s.trim().toLowerCase()
@@ -267,27 +268,27 @@ function toFolders() {
   router.push('/')
 }
 
-const mark = { correct: '✓', wrong: '✗', hint: '👁' }
+const pad = (n: number) => String(n).padStart(2, '0')
 </script>
 
 <template>
   <main class="page">
     <template v-if="phase === 'run' && current">
       <div class="bar">
-        <span>{{ idx + 1 }} / {{ total }}</span>
+        <span class="mono">{{ pad(idx + 1) }} / {{ pad(total) }}</span>
         <button class="link" @click="finalize">завершить</button>
       </div>
       <div class="track"><i :style="{ width: (idx / total) * 100 + '%' }" /></div>
 
       <!-- flashcard -->
       <section v-if="current.kind === 'flashcard'" class="ex">
-        <p class="q">{{ current.card.text }}</p>
-        <p v-if="current.card.transcription" class="tr">/{{ current.card.transcription }}/</p>
+        <p class="q disp">{{ current.card.text }}</p>
+        <p v-if="current.card.transcription" class="tr mono">/{{ current.card.transcription }}/</p>
         <template v-if="!revealed">
           <button class="wide" @click="revealed = true">показать перевод</button>
         </template>
         <template v-else>
-          <p class="ans">{{ current.card.translation }}</p>
+          <p class="ans disp">{{ current.card.translation }}</p>
           <p v-if="current.card.example" class="ex-sent">{{ current.card.example }}</p>
           <div class="pair">
             <button class="wide bad-btn" @click="flashRate(false)">не знал</button>
@@ -299,16 +300,16 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
       <!-- pick: choice / gap / clickable -->
       <section v-else-if="isPick(current.kind)" class="ex">
         <template v-if="current.kind === 'choice'">
-          <p class="q">{{ current.card.text }}</p>
-          <p v-if="current.card.transcription" class="tr">/{{ current.card.transcription }}/</p>
+          <p class="q disp">{{ current.card.text }}</p>
+          <p v-if="current.card.transcription" class="tr mono">/{{ current.card.transcription }}/</p>
         </template>
         <template v-else-if="current.kind === 'gap'">
-          <p class="hint-line">вставьте слово</p>
-          <p class="sent">{{ gapParts[0] }}<span class="blank">?</span>{{ gapParts[1] }}</p>
+          <p class="label hint-line">вставьте слово</p>
+          <p class="sent">{{ gapParts[0] }}<span class="blank mono">?</span>{{ gapParts[1] }}</p>
         </template>
         <template v-else-if="current.kind === 'clickable' && clickParts">
-          <p class="hint-line">что значит выделенное слово?</p>
-          <p class="sent">{{ clickParts.pre }}<b class="hit">{{ clickParts.hit }}</b>{{ clickParts.post }}</p>
+          <p class="label hint-line">что значит выделенное слово?</p>
+          <p class="sent">{{ clickParts.pre }}<b class="hit mono">{{ clickParts.hit }}</b>{{ clickParts.post }}</p>
         </template>
 
         <div class="opts">
@@ -316,30 +317,43 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
             v-for="o in pickOptions"
             :key="o"
             class="opt-btn"
-            :class="pickClass(o)"
+            :class="[pickClass(o), current.kind === 'gap' ? 'mono' : 'disp']"
             :disabled="!!picked || hintShown"
             @click="pickChoose(o)"
           >
             {{ o }}
+            <svg
+              v-if="pickClass(o) === 'ok'"
+              class="mk"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path d="m5 13 4 4 10-11" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
           </button>
         </div>
 
-        <p v-if="hintShown" class="ans">{{ peekText }}</p>
-        <button v-if="!picked && !hintShown" class="link" @click="hintShown = true">
+        <p v-if="hintShown" class="ans disp">{{ peekText }}</p>
+        <button v-if="!picked && !hintShown" class="link peek" @click="hintShown = true">
           подсмотреть перевод
         </button>
-        <button v-if="picked || hintShown" class="wide" @click="pickNext">дальше</button>
+        <div v-if="picked || hintShown" class="frame next-frame">
+          <button class="primary wide" @click="pickNext">дальше</button>
+        </div>
       </section>
 
       <!-- match -->
       <section v-else class="ex">
-        <p class="hint-line">сопоставьте пары</p>
+        <p class="label hint-line">сопоставьте пары</p>
         <div class="cols">
           <div class="col">
             <button
               v-for="c in matchEx.cards"
               :key="c.word_sense_id"
-              class="chip"
+              class="chip mono"
               :class="{
                 sel: mLeft === c.word_sense_id && !mFlash,
                 done: mLocked.has(c.word_sense_id),
@@ -355,7 +369,7 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
             <button
               v-for="(r, i) in matchEx.rights"
               :key="i"
-              class="chip"
+              class="chip disp"
               :class="{ done: mLockedR.has(i), err: mFlash?.right === i }"
               :disabled="mLockedR.has(i) || mGaveUp || !!mFlash"
               @click="tapRight(i)"
@@ -367,19 +381,36 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
 
         <ul v-if="mGaveUp" class="reveal">
           <li v-for="c in matchEx.cards" :key="c.word_sense_id">
-            {{ c.text }} — {{ c.translation }}
+            <b class="mono">{{ c.text }}</b> — {{ c.translation }}
           </li>
         </ul>
 
-        <button v-if="matchDone" class="wide" @click="matchNext">дальше</button>
-        <button v-else class="link" @click="matchGiveUp">показать ответы</button>
+        <div v-if="matchDone" class="frame next-frame">
+          <button class="primary wide" @click="matchNext">дальше</button>
+        </div>
+        <button v-else class="link peek" @click="matchGiveUp">показать ответы</button>
       </section>
     </template>
 
     <!-- итог -->
     <template v-else-if="phase === 'summary'">
-      <h1>Готово</h1>
-      <p class="totals">
+      <Sparkles
+        :spots="[
+          { pos: { top: '18px', right: '18px' }, size: 18, color: '#ffc23d', delay: 0 },
+          { pos: { top: '50px', right: '60px' }, size: 11, color: '#b6f04a', delay: 0.7 },
+          { pos: { top: '92px', right: '30px' }, size: 13, color: '#ff6ba6', delay: 1.5 },
+          { pos: { top: '14px', left: '120px' }, size: 10, color: '#8fa8ff', delay: 2.2 },
+        ]"
+      />
+      <p class="label">готово</p>
+
+      <div class="frame score-frame">
+        <div class="score">
+          <span class="mono big">{{ counts.correct }}</span>
+          <span class="mono of">/{{ total }}</span>
+        </div>
+      </div>
+      <p class="mono totals">
         <span class="ok-txt">верно {{ counts.correct }}</span> ·
         <span class="bad-txt">неверно {{ counts.wrong }}</span> ·
         <span class="muted">подсказок {{ counts.hint }}</span>
@@ -391,14 +422,26 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
         <button class="link" @click="save">повторить</button>
       </p>
 
+      <p class="label rev-label">разбор</p>
       <ul class="rev">
         <li v-for="(r, i) in review" :key="i" class="rev-row">
-          <span class="rev-mark" :class="r.outcome">{{ mark[r.outcome] }}</span>
+          <span class="rev-mark" :class="r.outcome" aria-hidden="true">
+            <svg v-if="r.outcome === 'correct'" width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <svg v-else-if="r.outcome === 'wrong'" width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" />
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.2" />
+              <path d="M12 8v4l3 2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+            </svg>
+          </span>
           <div class="rev-body">
-            <div>
-              <b>{{ r.text }}</b>
-              <span v-if="r.transcription" class="tr"> /{{ r.transcription }}/</span>
-              — {{ r.translation }}
+            <div class="rev-head">
+              <b class="mono">{{ r.text }}</b>
+              <span v-if="r.transcription" class="tr mono"> /{{ r.transcription }}/</span>
+              <span class="muted"> — {{ r.translation }}</span>
             </div>
             <div v-if="r.example" class="muted small">{{ r.example }}</div>
           </div>
@@ -407,7 +450,9 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
 
       <div class="pair">
         <button class="wide" @click="toFolders">к темам</button>
-        <button class="wide ok-btn" @click="again">ещё</button>
+        <div class="frame" style="flex: 1">
+          <button class="primary wide" @click="again">ещё</button>
+        </div>
       </div>
     </template>
   </main>
@@ -419,107 +464,137 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
   justify-content: space-between;
   align-items: center;
   color: var(--muted);
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 .track {
-  height: 3px;
-  background: #23262e;
-  border-radius: 2px;
-  margin: 0.4rem 0 1.5rem;
+  height: 6px;
+  background: var(--raise);
+  border-radius: var(--r-pill);
+  margin: 0.5rem 0 2.2rem;
 }
 .track i {
   display: block;
   height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--hero-a), #6a8cff);
+  box-shadow: 0 0 12px rgba(34, 217, 179, 0.5);
   transition: width 0.2s;
 }
 
 .ex {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 .q {
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   margin: 0.5rem 0 0.25rem;
 }
+.hint-line {
+  display: block;
+  margin: 0 0 1rem;
+}
 .sent {
-  font-size: 1.15rem;
-  line-height: 1.6;
-  margin: 0.25rem 0 1rem;
+  font-size: 1.18rem;
+  line-height: 1.65;
+  color: var(--fg-dim);
+  margin: 0.25rem 0 2rem;
 }
 .blank {
   display: inline-block;
-  min-width: 2.5rem;
+  min-width: 3rem;
   text-align: center;
-  color: var(--accent);
-  border-bottom: 2px solid var(--accent);
+  font-weight: 700;
+  color: var(--hero-a);
+  border-bottom: 2px solid var(--hero-a);
 }
 .hit {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-weight: 700;
+  color: var(--hero-a);
+  border-bottom: 2px solid var(--hero-a);
 }
 .tr {
-  color: var(--muted);
+  color: var(--faint);
+  font-size: 0.85rem;
   margin: 0 0 1rem;
 }
 .ans {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
+  font-weight: 800;
   margin: 1.25rem 0 0.5rem;
 }
 .ex-sent {
   color: var(--muted);
   margin: 0 0 1.25rem;
 }
-.hint-line {
-  color: var(--muted);
-  margin: 0 0 0.5rem;
-}
 
 .wide {
   width: 100%;
-  padding: 0.75rem;
-  margin-top: 0.75rem;
+  padding: 0.9rem;
 }
 .pair {
   display: flex;
   gap: 0.6rem;
 }
-.pair .wide {
+.pair > .wide,
+.pair > .frame {
   flex: 1;
-}
-.ok-btn {
-  background: #17351f;
-  border-color: #2f6b3c;
-}
-.bad-btn {
-  background: #3a1c1c;
-  border-color: #6b2f2f;
 }
 
 .opts {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
   margin: 1rem 0;
 }
 .opt-btn {
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.9rem 1.1rem;
   text-align: left;
+  background: var(--card);
+  color: var(--fg-dim);
+  font-weight: 500;
+  font-size: 1rem;
+  text-transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.opt-btn.disp {
+  font-weight: 700;
 }
 .opt-btn.ok {
-  background: #17351f;
-  border-color: #2f6b3c;
+  background: var(--grad-ok);
+  color: var(--ok-ink);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 .opt-btn.bad {
-  background: #3a1c1c;
-  border-color: #6b2f2f;
+  background: var(--grad-bad);
+  color: var(--bad-ink);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.opt-btn .mk {
+  flex: none;
+}
+
+.peek {
+  display: block;
+  text-align: center;
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0;
+}
+.next-frame {
+  margin-top: 0.85rem;
 }
 
 .cols {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.55rem;
 }
 .col {
   flex: 1;
@@ -529,21 +604,33 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
 }
 .chip {
   width: 100%;
-  padding: 0.7rem 0.5rem;
+  padding: 0.9rem 0.6rem;
   word-break: break-word;
+  background: var(--card);
+  color: var(--fg-dim);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-transform: none;
+  text-align: left;
+}
+.chip.disp {
+  font-weight: 800;
 }
 .chip.sel {
-  border-color: var(--accent);
-  background: #1b2740;
+  background: #17223a;
+  color: var(--fg);
+  outline: 2px solid var(--sapphire-b);
 }
 .chip.done {
-  background: #17351f;
-  border-color: #2f6b3c;
-  opacity: 0.75;
+  background: var(--grad-ok);
+  color: var(--ok-ink);
+  opacity: 0.72;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .chip.err {
-  background: #3a1c1c;
-  border-color: #6b2f2f;
+  background: var(--grad-bad);
+  color: var(--bad-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .reveal {
   list-style: none;
@@ -552,42 +639,79 @@ const mark = { correct: '✓', wrong: '✗', hint: '👁' }
   color: var(--muted);
 }
 .reveal li {
-  padding: 0.2rem 0;
+  padding: 0.25rem 0;
 }
 
+/* --- итог --- */
+.score-frame {
+  margin: 0.4rem 0 0.75rem;
+}
+.score {
+  background: #17190f;
+  padding: 0.75rem 1.1rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  overflow: hidden;
+}
+.score .big {
+  font-weight: 700;
+  font-size: 4.75rem;
+  line-height: 0.78;
+  color: var(--ok-text);
+}
+.score .of {
+  font-weight: 500;
+  font-size: 1.5rem;
+  line-height: 1.7;
+  color: var(--faint);
+}
 .totals {
-  font-size: 1.05rem;
-  margin: 0.5rem 0 1rem;
+  font-size: 0.78rem;
+  margin: 0 0 1.5rem;
 }
 .ok-txt {
-  color: #6bd68a;
+  color: var(--ok-text);
 }
 .bad-txt {
-  color: var(--err);
+  color: var(--bad-text);
+}
+.rev-label {
+  display: block;
+  margin: 0 0 0.6rem;
 }
 .rev {
   list-style: none;
   padding: 0;
-  margin: 1rem 0;
+  margin: 0 0 1.5rem;
 }
 .rev-row {
   display: flex;
-  gap: 0.6rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid #23262e;
+  gap: 0.75rem;
+  padding: 0.75rem 0.15rem;
+  border-bottom: 1px solid var(--line);
 }
 .rev-mark {
   flex: none;
-  width: 1.4rem;
-  text-align: center;
+  margin-top: 0.15rem;
+  display: flex;
 }
 .rev-mark.correct {
-  color: #6bd68a;
+  color: var(--ok-text);
 }
 .rev-mark.wrong {
-  color: var(--err);
+  color: var(--bad-text);
+}
+.rev-mark.hint {
+  color: var(--faint);
 }
 .rev-body {
   min-width: 0;
+}
+.rev-head {
+  font-size: 0.9rem;
+}
+.rev-head .tr {
+  margin: 0;
 }
 </style>

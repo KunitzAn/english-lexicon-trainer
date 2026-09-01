@@ -113,7 +113,7 @@ onMounted(load)
           <input type="checkbox" :checked="selected.has(w.id)" @change="toggle(w.id)" />
           <div class="wbody">
             <div class="wmain">
-              <router-link :to="`/words/${w.id}`" class="wtext">{{ w.text }}</router-link>
+              <router-link :to="`/words/${w.id}`" class="wtext mono">{{ w.text }}</router-link>
               <span class="wtr">{{ w.translations.join(', ') }}</span>
             </div>
             <div class="wmeta">{{ folderNames(w.folder_ids) }}</div>
@@ -157,7 +157,7 @@ onMounted(load)
   align-items: baseline;
   gap: 0.6rem;
   padding: 0.6rem 0;
-  border-bottom: 1px solid #23262e;
+  border-bottom: 1px solid var(--line);
 }
 .wbody {
   flex: 1;
@@ -170,7 +170,8 @@ onMounted(load)
   gap: 0.5rem;
 }
 .wtext {
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--fg);
 }
 .wtr {
   color: var(--muted);

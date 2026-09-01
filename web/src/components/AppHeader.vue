@@ -1,8 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth, logout } from '@/auth'
 
 const router = useRouter()
+
+const initial = computed(() => {
+  const n = auth.user?.name ?? String(auth.user?.telegram_id ?? '?')
+  return n.trim().charAt(0).toUpperCase() || '?'
+})
 
 async function onLogout() {
   await logout()
@@ -12,10 +18,12 @@ async function onLogout() {
 
 <template>
   <header class="app-header">
-    <router-link to="/" class="brand">Lexicon</router-link>
+    <router-link to="/" class="brand disp">lexicon</router-link>
     <span class="spacer" />
-    <span v-if="auth.user" class="who">{{ auth.user.name ?? auth.user.telegram_id }}</span>
     <button class="link" @click="onLogout">выйти</button>
+    <span v-if="auth.user" class="ava disp" :title="auth.user.name ?? String(auth.user.telegram_id)">
+      {{ initial }}
+    </span>
   </header>
 </template>
 
@@ -24,27 +32,37 @@ async function onLogout() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #23262e;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.85rem 1.125rem;
 }
 .brand {
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
   color: var(--fg);
-  text-decoration: none;
+}
+.brand:hover {
+  color: var(--fg);
 }
 .spacer {
   flex: 1;
 }
-.who {
-  color: var(--muted);
+.link {
   font-size: 0.85rem;
 }
-.link {
-  background: none;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
+.ava {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: var(--hero-ink);
+  background: linear-gradient(160deg, var(--hero-a), var(--hero-b));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 </style>

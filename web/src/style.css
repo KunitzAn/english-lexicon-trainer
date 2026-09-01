@@ -1,10 +1,65 @@
+/* =========================================================================
+   English Lexicon Trainer — визуальный слой (этап 6)
+   Направление: «тёмная бархатная шкатулка + самоцветы».
+   Тёмная зернистая база, самоцветные глянцевые акценты, стеклянные кнопки,
+   Bricolage Grotesque + JetBrains Mono, жёсткие скругления, блёстки.
+   ========================================================================= */
+
 :root {
-  --bg: #0f1115;
-  --card: #171a21;
-  --fg: #e7e9ee;
-  --muted: #8a90a0;
-  --err: #ff6b6b;
-  --accent: #6ea8fe;
+  /* база — тёмная зернистая */
+  --bg: #111310;
+  --bg-deep: #0d0f0b;
+  --card: #1a1d18;
+  --card-2: #161814;
+  --raise: #2b3027;
+  --line: #23261f;
+  --fg: #ece7dc;
+  --fg-dim: #d8d4c6;
+  --muted: #8c8a7c;
+  --faint: #6f6d61;
+
+  /* самоцветы — глянец */
+  --hero-a: #22d9b3;
+  --hero-b: #12b090;
+  --hero-ink: #04231d;
+  --ok-a: #b6f04a;
+  --ok-b: #8ccf1f;
+  --ok-ink: #16330a;
+  --ok-text: #b6f04a;
+  --bad-a: #ff6ba6;
+  --bad-b: #e0357f;
+  --bad-ink: #40071e;
+  --bad-text: #ff6ba6;
+  --amber-a: #ffd45e;
+  --amber-b: #f2a913;
+  --amber: #ffc23d;
+  --sapphire-a: #8fa8ff;
+  --sapphire-b: #5b74e6;
+  --amethyst-a: #c98bff;
+  --amethyst-b: #8b3fe0;
+  --link: #7db0ff;
+  --link-hover: #a3c8ff;
+  --err: #ff6ba6;
+
+  /* скругления — жёсткие */
+  --r-xs: 7px;
+  --r-sm: 9px;
+  --r-md: 11px;
+  --r-lg: 13px;
+  --r-xl: 15px;
+  --r-pill: 999px;
+
+  --font-disp: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --grad-hero: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(160deg, var(--hero-a), var(--hero-b));
+  --grad-ok: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 44%),
+    linear-gradient(160deg, var(--ok-a), var(--ok-b));
+  --grad-bad: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 44%),
+    linear-gradient(160deg, var(--bad-a), var(--bad-b));
+
   color-scheme: dark;
 }
 
@@ -21,8 +76,20 @@ body {
 body {
   background: var(--bg);
   color: var(--fg);
-  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 16px/1.5 var(--font-ui);
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* зерно поверх всего */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 #app {
@@ -33,22 +100,63 @@ body {
 .home {
   max-width: 40rem;
   margin: 0 auto;
-  padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom));
+  padding: 1.25rem 1.125rem calc(2.5rem + env(safe-area-inset-bottom));
+  position: relative;
+}
+
+/* ---- типографика ---- */
+
+.disp {
+  font-family: var(--font-disp);
+}
+.mono {
+  font-family: var(--font-mono);
 }
 
 h1 {
-  font-size: 1.3rem;
-  margin: 0 0 0.5rem;
+  font-family: var(--font-disp);
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+  line-height: 1;
+  margin: 0 0 0.75rem;
 }
 
 h2 {
-  font-size: 1rem;
-  margin: 0 0 0.5rem;
+  font-family: var(--font-disp);
+  font-size: 0.98rem;
+  font-weight: 800;
+  margin: 0 0 0.6rem;
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: var(--faint);
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
+  text-decoration: none;
 }
+a:hover {
+  color: var(--link-hover);
+}
+
+.muted {
+  color: var(--muted);
+}
+.err {
+  color: var(--err);
+}
+.small {
+  font-size: 0.85rem;
+}
+
+/* ---- раскладка ---- */
 
 .row {
   display: flex;
@@ -59,9 +167,9 @@ a {
 
 .card {
   margin: 1rem 0;
-  padding: 0.85rem 1rem;
+  padding: 0.9rem 1rem;
   background: var(--card);
-  border-radius: 0.6rem;
+  border-radius: var(--r-lg);
 }
 
 .list {
@@ -74,8 +182,16 @@ a {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #23262e;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.list li a {
+  color: var(--fg);
+  font-weight: 700;
+}
+.list li a:hover {
+  color: var(--fg);
 }
 
 .add {
@@ -84,14 +200,26 @@ a {
   margin: 1rem 0;
 }
 
-input:not([type='checkbox']):not([type='radio']) {
+/* ---- поля ввода ---- */
+
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
   width: 100%;
-  padding: 0.5rem 0.6rem;
-  background: #0d0f13;
-  border: 1px solid #2a2e39;
-  border-radius: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--bg-deep);
+  border: 1px solid var(--raise);
+  border-radius: var(--r-sm);
   color: var(--fg);
   font: inherit;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--hero-a);
+  outline-offset: 1px;
 }
 
 input[type='checkbox'],
@@ -99,16 +227,32 @@ input[type='radio'] {
   width: auto;
   margin: 0;
   flex: none;
+  accent-color: var(--hero-a);
 }
 
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--hero-a);
+}
+
+/* ---- кнопки ---- */
+
 button {
-  padding: 0.5rem 0.9rem;
-  background: #222633;
-  border: 1px solid #333949;
-  border-radius: 0.4rem;
+  padding: 0.6rem 1rem;
+  background: var(--raise);
+  border: none;
+  border-radius: var(--r-md);
   color: var(--fg);
   font: inherit;
+  font-family: var(--font-disp);
+  font-weight: 800;
+  text-transform: lowercase;
   cursor: pointer;
+  transition: filter 0.12s, opacity 0.12s;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 
 button:disabled {
@@ -119,28 +263,121 @@ button:disabled {
 button.link {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--link);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  text-transform: none;
   padding: 0 0.5rem 0 0;
 }
+button.link:hover:not(:disabled) {
+  filter: none;
+  color: var(--link-hover);
+}
+
+/* стеклянная главная кнопка */
+.glass,
+button.primary,
+button.go {
+  background: var(--grad-hero);
+  color: var(--hero-ink);
+  box-shadow: 0 8px 22px rgba(23, 201, 164, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+button.ok-btn {
+  background: var(--grad-ok);
+  color: var(--ok-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+button.bad-btn {
+  background: var(--grad-bad);
+  color: var(--bad-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ---- чипы / опции ---- */
 
 .opt {
-  display: block;
-  margin: 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0;
 }
 
 .opt input {
-  width: auto;
-  margin-right: 0.4rem;
+  margin-right: 0.15rem;
 }
 
-.muted {
-  color: var(--muted);
+/* ---- блёстки: сверкающая рамка ---- */
+
+@keyframes sheen {
+  to {
+    background-position: 240% 0;
+  }
 }
 
-.err {
-  color: var(--err);
+.frame {
+  border-radius: var(--r-xl);
+  padding: 1.7px;
+  background: linear-gradient(
+    110deg,
+    #2b3027 16%,
+    #ffe9a8 32%,
+    #b6f04a 43%,
+    #22d9b3 54%,
+    #8fa8ff 65%,
+    #c98bff 76%,
+    #2b3027 88%
+  );
+  background-size: 260% 100%;
+  animation: sheen 3.4s linear infinite;
+}
+.frame > * {
+  border-radius: calc(var(--r-xl) - 2px);
 }
 
-.small {
-  font-size: 0.85rem;
+.frame-ok {
+  border-radius: var(--r-lg);
+  padding: 1.7px;
+  background: linear-gradient(
+    110deg,
+    #232a19 12%,
+    #eaffb0 30%,
+    #b6f04a 44%,
+    #8ce23f 56%,
+    #eaffb0 70%,
+    #232a19 88%
+  );
+  background-size: 240% 100%;
+  animation: sheen 2.6s linear infinite;
+}
+.frame-ok > * {
+  border-radius: calc(var(--r-lg) - 2px);
+}
+
+/* ---- блёстки: мерцающая звёздочка ---- */
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tw {
+  position: absolute;
+  pointer-events: none;
+  animation: twinkle 2.7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame,
+  .frame-ok,
+  .tw {
+    animation: none;
+  }
 }

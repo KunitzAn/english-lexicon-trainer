@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+  <style>
+    body { margin: 0; background: #111310; color: #ece7dc; font-family: system-ui, -apple-system, sans-serif; }
+    body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+    a { color: #7db0ff; } a:hover { color: #a3c8ff; }
+    * { box-sizing: border-box; }
+    .disp { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: lowercase; color: #6f6d61; }
+    @keyframes sheen { to { background-position: 240% 0; } }
+    .frame-ok { border-radius: 12px; padding: 1.6px;
+      background: linear-gradient(110deg,#232a19 12%,#eaffb0 30%,#b6f04a 44%,#8ce23f 56%,#eaffb0 70%,#232a19 88%);
+      background-size: 240% 100%; animation: sheen 2.6s linear infinite; }
+    @keyframes twinkle { 0%,100% { opacity: 0.28; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+    .tw { animation: twinkle 2.7s ease-in-out infinite; }
+    .cell { border: none; cursor: pointer; padding: 16px 8px; border-radius: 10.5px; width: 100%; }
+    .cell-ok { color: #16330a;
+      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 44%), linear-gradient(160deg,#b6f04a,#8ccf1f);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
+  </style>
+</helmet>
+
+<div style="max-width: 390px; margin: 0 auto; padding: 20px 18px 32px; min-height: 640px; display: flex; flex-direction: column; position: relative;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+    <span class="mono" style="font-weight: 700; font-size: 13px; color: #8c8a7c;">07 / 12</span>
+    <a href="#" style="font-weight: 600; font-size: 12.5px; color: #6f6d61; text-transform: lowercase;">завершить</a>
+  </div>
+  <div style="height: 6px; background: #2b3027; border-radius: 999px; margin-bottom: 38px;">
+    <div style="height: 100%; width: 58%; border-radius: 999px; background: linear-gradient(90deg,#22d9b3,#6a8cff); box-shadow: 0 0 12px rgba(34,217,179,0.5);"></div>
+  </div>
+
+  <div class="label" style="margin-bottom: 18px;">сопоставьте пары</div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px;">
+    <div style="display: flex; flex-direction: column; gap: 9px;">
+      <div class="frame-ok"><button class="cell cell-ok mono" style="text-align:left; font-weight:700; font-size:15px;">eavesdrop</button></div>
+      <button class="cell mono" style="text-align:left; font-weight:700; font-size:15px; background: #17223a; color: #ece7dc; outline: 2px solid #6a8cff;">maelstrom</button>
+      <button class="cell mono" style="text-align:left; font-weight:500; font-size:15px; background: #1a1d18; color: #d8d4c6;">lucid</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 9px;">
+      <div class="frame-ok"><button class="cell cell-ok disp" style="font-weight:800; font-size:15px;">подслушивать</button></div>
+      <button class="cell disp" style="font-weight:800; font-size:15px; color: #40071e;
+        background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 44%), linear-gradient(160deg,#ff6ba6,#e0357f);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);">ясный</button>
+      <button class="cell disp" style="font-weight:700; font-size:15px; background: #1a1d18; color: #d8d4c6;">водоворот</button>
+    </div>
+  </div>
+
+  <div style="flex: 1; position: relative; min-height: 40px;">
+    <svg class="tw" style="position:absolute; top:30px; left:20px; animation-delay:.4s" width="12" height="12" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#8fa8ff"/></svg>
+    <svg class="tw" style="position:absolute; top:12px; right:30px; animation-delay:1.4s" width="14" height="14" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ffc23d"/></svg>
+    <svg class="tw" style="position:absolute; bottom:10px; left:150px; animation-delay:2.1s" width="10" height="10" viewBox="0 0 24 24"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#c98bff"/></svg>
+  </div>
+
+  <div style="text-align: center; margin-top: 8px;">
+    <a href="#" style="font-weight: 600; font-size: 13.5px; color: #6f6d61; text-transform: lowercase;">показать ответы</a>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":620}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

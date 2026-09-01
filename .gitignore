@@ -6,3 +6,6 @@ dist/
 .env
 *.log
 .DS_Store
+
+# сид дизайн-канваса (артефакт, ~2.5 МБ) — публикуется как Artifact, не нужен в репо
+.design/lexicon-restyle.html

@@ -47,15 +47,50 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="home">
-    <h1>Вход</h1>
-    <p class="muted">English Lexicon Trainer</p>
+  <main class="home login">
+    <p class="brand disp">lexicon</p>
+    <h1>вход</h1>
+    <p class="muted sub">English&nbsp;Lexicon&nbsp;Trainer — личный тренажёр лексики C1/C2</p>
 
-    <div ref="widgetHost" class="card"></div>
+    <div ref="widgetHost" class="widget"></div>
 
     <p v-if="err" class="err">{{ err }}</p>
-    <p class="muted small">
+    <p class="muted small note">
       Первый вошедший становится владельцем. Остальным доступ выдаёт владелец.
     </p>
   </main>
 </template>
+
+<style scoped>
+.login {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+.brand {
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.03em;
+  color: var(--faint);
+  margin: 0 0 0.5rem;
+}
+.login h1 {
+  font-size: 2.4rem;
+}
+.sub {
+  max-width: 20rem;
+  margin: 0.25rem auto 2rem;
+  font-size: 0.9rem;
+}
+.widget {
+  min-height: 3rem;
+  display: flex;
+  justify-content: center;
+}
+.note {
+  max-width: 22rem;
+  margin: 1.5rem auto 0;
+}
+</style>

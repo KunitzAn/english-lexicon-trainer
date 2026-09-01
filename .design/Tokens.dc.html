@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+  <style>
+    body { margin: 0; background: #111310; color: #ece7dc; font-family: system-ui, -apple-system, sans-serif; }
+    body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+    a { color: #7db0ff; } a:hover { color: #a3c8ff; }
+    * { box-sizing: border-box; }
+    .disp { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: lowercase; color: #6f6d61; }
+    @keyframes sheen { to { background-position: 240% 0; } }
+    .frame { border-radius: 14px; padding: 1.8px;
+      background: linear-gradient(110deg,#2b3027 14%,#ffe9a8 30%,#b6f04a 42%,#22d9b3 54%,#8fa8ff 66%,#c98bff 76%,#2b3027 88%);
+      background-size: 260% 100%; animation: sheen 3.2s linear infinite; }
+    @keyframes twinkle { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+    .tw { animation: twinkle 2.6s ease-in-out infinite; }
+  </style>
+</helmet>
+
+<div style="max-width: 400px; margin: 0 auto; padding: 24px 20px 36px;">
+
+  <div class="label" style="margin-bottom: 12px;">база · тёмная зернистая</div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 7px; margin-bottom: 18px;">
+    <div><div style="height: 44px; border-radius: 9px; background: #111310; border: 1px solid #2b3027;"></div><div class="mono" style="font-size: 9.5px; color: #8c8a7c; margin-top: 4px;">bg 111310</div></div>
+    <div><div style="height: 44px; border-radius: 9px; background: #1a1d18;"></div><div class="mono" style="font-size: 9.5px; color: #8c8a7c; margin-top: 4px;">card 1a1d18</div></div>
+    <div><div style="height: 44px; border-radius: 9px; background: #2b3027;"></div><div class="mono" style="font-size: 9.5px; color: #8c8a7c; margin-top: 4px;">raise 2b3027</div></div>
+    <div><div style="height: 44px; border-radius: 9px; background: #ece7dc;"></div><div class="mono" style="font-size: 9.5px; color: #8c8a7c; margin-top: 4px;">fg ece7dc</div></div>
+  </div>
+
+  <div class="label" style="margin-bottom: 12px;">самоцветы · глянец</div>
+  <div style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 6px; margin-bottom: 24px;">
+    <div><div style="height: 42px; border-radius: 9px; background: linear-gradient(160deg,#22d9b3,#12b090); box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);"></div><div class="label" style="margin-top: 4px;">hero</div></div>
+    <div><div style="height: 42px; border-radius: 9px; background: linear-gradient(160deg,#b6f04a,#8ccf1f);"></div><div class="label" style="margin-top: 4px;">верно</div></div>
+    <div><div style="height: 42px; border-radius: 9px; background: linear-gradient(160deg,#ff6ba6,#e0357f);"></div><div class="label" style="margin-top: 4px;">неверно</div></div>
+    <div><div style="height: 42px; border-radius: 9px; background: linear-gradient(160deg,#ffd45e,#f2a913);"></div><div class="label" style="margin-top: 4px;">серия</div></div>
+    <div><div style="height: 42px; border-radius: 9px; background: linear-gradient(160deg,#8fa8ff,#5b74e6);"></div><div class="label" style="margin-top: 4px;">сапфир</div></div>
+    <div><div style="height: 42px; border-radius: 9px; background: linear-gradient(160deg,#c98bff,#8b3fe0);"></div><div class="label" style="margin-top: 4px;">аметист</div></div>
+  </div>
+
+  <div class="label" style="margin-bottom: 12px;">шрифт</div>
+  <div style="margin-bottom: 22px;">
+    <div class="disp" style="font-size: 30px; font-weight: 800; letter-spacing: -0.03em; text-transform: lowercase;">bricolage · заголовки</div>
+    <div class="mono" style="font-size: 17px; font-weight: 500; color: #d8d4c6; margin-top: 6px;">JetBrains Mono — meticulous / 04&nbsp;/&nbsp;12</div>
+    <div style="font-size: 15px; color: #b7b4a6; margin-top: 6px;">system-ui — русский текст предложений.</div>
+    <div class="label" style="margin-top: 8px;">подпись · строчные · трекинг 0.22em</div>
+  </div>
+
+  <div class="label" style="margin-bottom: 12px;">блёстки · сверкающая рамка</div>
+  <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg class="tw" width="20" height="20" viewBox="0 0 24 24" style="animation-delay:0s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ffc23d"/></svg>
+      <svg class="tw" width="14" height="14" viewBox="0 0 24 24" style="animation-delay:.7s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#b6f04a"/></svg>
+      <svg class="tw" width="11" height="11" viewBox="0 0 24 24" style="animation-delay:1.4s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#ff6ba6"/></svg>
+      <svg class="tw" width="9" height="9" viewBox="0 0 24 24" style="animation-delay:2s"><path d="M12 2c1 5 4 8 9 9-5 1-8 4-9 9-1-5-4-8-9-9 5-1 8-4 9-9Z" fill="#8fa8ff"/></svg>
+    </div>
+    <span class="mono" style="font-size: 10px; color: #6f6d61;">twinkle 2.6s</span>
+  </div>
+  <div class="frame" style="max-width: 220px;">
+    <div style="border-radius: 12px; background: #17190f; padding: 16px; text-align: center;">
+      <span class="disp" style="font-weight: 800; font-size: 15px; text-transform: lowercase; color: #ece7dc;">сверкающая рамка</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":400,"height":640}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

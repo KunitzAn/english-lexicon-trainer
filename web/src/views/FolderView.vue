@@ -70,18 +70,18 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <p><router-link to="/">← темы</router-link></p>
+    <p class="back"><router-link to="/">← темы</router-link></p>
 
-    <div class="row">
+    <div class="row head">
       <h1>{{ name || '…' }}</h1>
-      <span>
+      <span class="acts">
         <button class="link" :disabled="renaming" @click="rename">переименовать</button>
         <button class="link" @click="removeFolder">удалить</button>
       </span>
     </div>
 
-    <p>
-      <router-link :to="`/words/add?folder=${folderId}`">+ слово в эту тему</router-link>
+    <p class="add-line">
+      <router-link :to="`/words/add?folder=${folderId}`">＋ слово в эту тему</router-link>
     </p>
 
     <p v-if="error" class="err">{{ error }}</p>
@@ -90,7 +90,8 @@ onMounted(load)
     <ul v-else class="list">
       <li v-for="w in words" :key="w.id">
         <router-link :to="`/words/${w.id}`">
-          {{ w.text }}<span v-if="w.is_phrase" class="muted"> (фраза)</span>
+          <span class="mono">{{ w.text }}</span>
+          <span v-if="w.is_phrase" class="muted small"> · фраза</span>
         </router-link>
         <span class="muted">{{ w.translations.join(', ') }}</span>
       </li>
@@ -98,3 +99,31 @@ onMounted(load)
     </ul>
   </main>
 </template>
+
+<style scoped>
+.back {
+  margin: 0 0 0.5rem;
+}
+.head {
+  align-items: flex-start;
+}
+.acts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  flex: none;
+}
+.add-line {
+  margin: 0.25rem 0 1rem;
+}
+.add-line a {
+  font-weight: 700;
+  text-transform: lowercase;
+}
+.list li a {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+</style>

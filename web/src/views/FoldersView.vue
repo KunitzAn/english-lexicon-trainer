@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '@/api'
+import Sparkles from '@/components/Sparkles.vue'
 import type { FolderRow } from '@/lib/types'
 
+const router = useRouter()
 const folders = ref<FolderRow[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -42,35 +45,118 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <div class="row">
-      <h1>Темы</h1>
-      <span class="nav">
-        <router-link to="/train">тренировка</router-link>
-        <router-link to="/words">все слова</router-link>
-      </span>
-    </div>
+    <Sparkles
+      :spots="[
+        { pos: { top: '52px', left: '58px' }, size: 14, color: '#ffc23d', delay: 0 },
+        { pos: { top: '44px', left: '92px' }, size: 9, color: '#c98bff', delay: 1 },
+        { pos: { top: '74px', left: '40px' }, size: 10, color: '#b6f04a', delay: 1.9 },
+      ]"
+    />
 
-    <form class="add" @submit.prevent="create">
-      <input v-model="newName" placeholder="Новая тема" />
-      <button :disabled="creating || !newName.trim()">добавить</button>
-    </form>
+    <h1>темы</h1>
+
+    <div class="frame cta-frame">
+      <button class="primary cta" @click="router.push('/train')">
+        тренировка
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 5v14l11-7-11-7Z" fill="currentColor" />
+        </svg>
+      </button>
+    </div>
+    <p class="all-link">
+      <router-link to="/words">все слова →</router-link>
+    </p>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
-    <ul v-else class="list">
-      <li v-for="f in folders" :key="f.id">
-        <router-link :to="`/folders/${f.id}`">{{ f.name }}</router-link>
-        <span class="muted">{{ f.word_count }}</span>
-      </li>
-      <li v-if="!folders.length" class="muted">пока пусто</li>
-    </ul>
+    <template v-else>
+      <ul class="themes">
+        <li v-for="f in folders" :key="f.id">
+          <router-link :to="`/folders/${f.id}`" class="theme">
+            <span class="tname disp">{{ f.name }}</span>
+            <span class="tmeta mono">{{ f.word_count }}</span>
+          </router-link>
+        </li>
+      </ul>
+      <p v-if="!folders.length" class="muted">пока пусто — заведите первую тему</p>
+
+      <form class="new-theme" @submit.prevent="create">
+        <input v-model="newName" placeholder="новая тема…" />
+        <button :disabled="creating || !newName.trim()" aria-label="добавить тему">＋</button>
+      </form>
+    </template>
   </main>
 </template>
 
 <style scoped>
-.nav {
+.cta-frame {
+  margin-top: 0.5rem;
+}
+.cta {
+  width: 100%;
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.95rem;
+  font-size: 1.05rem;
+}
+.all-link {
+  text-align: center;
+  margin: 0.75rem 0 1.5rem;
+}
+.all-link a {
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: lowercase;
+}
+
+.themes {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.theme {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: 0.9rem 1rem;
+}
+.theme:hover {
+  filter: brightness(1.1);
+}
+.tname {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--fg);
+}
+.tmeta {
+  flex: none;
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--faint);
+}
+
+.new-theme {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.new-theme input {
+  border-style: dashed;
+  background: var(--card-2);
+}
+.new-theme button {
+  flex: none;
+  padding: 0 1.1rem;
+  font-size: 1.1rem;
 }
 </style>
