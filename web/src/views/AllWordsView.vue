@@ -6,6 +6,9 @@ import type { FolderRow, WordListItem } from '@/lib/types'
 
 const router = useRouter()
 
+/** Самоцветные акценты по кругу — рамки строк словаря. */
+const ACCENTS = ['#22d9b3', '#b6f04a', '#ffc23d', '#8fa8ff', '#c98bff', '#ff6ba6']
+
 const words = ref<WordListItem[]>([])
 const folders = ref<FolderRow[]>([])
 const loading = ref(true)
@@ -112,7 +115,12 @@ onMounted(load)
       </div>
 
       <ul class="words">
-        <li v-for="w in words" :key="w.id" class="wrow">
+        <li
+          v-for="(w, i) in words"
+          :key="w.id"
+          class="wrow"
+          :style="{ '--accent': ACCENTS[i % ACCENTS.length] }"
+        >
           <input
             type="checkbox"
             class="wcheck"
@@ -179,17 +187,22 @@ onMounted(load)
   align-self: center;
   width: 20px;
   height: 20px;
+  accent-color: var(--accent);
 }
 .wbody {
   flex: 1;
   min-width: 0;
   padding: 0.8rem 1rem;
   background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-left: 4px solid var(--accent);
   border-radius: var(--r-lg);
   color: var(--fg);
 }
 .wbody:hover {
-  filter: brightness(1.1);
+  background: color-mix(in srgb, var(--accent) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left-color: var(--accent);
   color: var(--fg);
 }
 .wmain {
@@ -200,7 +213,7 @@ onMounted(load)
 }
 .wtext {
   font-weight: 700;
-  color: var(--fg);
+  color: color-mix(in srgb, var(--accent) 50%, var(--fg));
 }
 .wtr {
   color: var(--muted);

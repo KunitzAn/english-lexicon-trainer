@@ -7,6 +7,9 @@ import type { WordListItem } from '@/lib/types'
 const route = useRoute()
 const router = useRouter()
 
+/** Самоцветные акценты по кругу — рамки строк слов. */
+const ACCENTS = ['#22d9b3', '#b6f04a', '#ffc23d', '#8fa8ff', '#c98bff', '#ff6ba6']
+
 const folderId = ref(Number(route.params.id))
 const name = ref('')
 const words = ref<WordListItem[]>([])
@@ -88,10 +91,14 @@ onMounted(load)
     <p v-if="loading" class="muted">загрузка…</p>
 
     <ul v-else class="rows">
-      <li v-for="w in words" :key="w.id">
-        <router-link :to="`/words/${w.id}`" class="row-link">
+      <li
+        v-for="(w, i) in words"
+        :key="w.id"
+        :style="{ '--accent': ACCENTS[i % ACCENTS.length] }"
+      >
+        <router-link :to="`/words/${w.id}`" class="row-link accented">
           <span class="w-main">
-            <span class="mono">{{ w.text }}</span>
+            <span class="mono wt">{{ w.text }}</span>
             <span v-if="w.is_phrase" class="muted small"> · фраза</span>
           </span>
           <span class="muted w-tr">{{ w.translations.join(', ') }}</span>
@@ -126,6 +133,19 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+.row-link.accented {
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-left: 4px solid var(--accent);
+}
+.row-link.accented:hover {
+  background: color-mix(in srgb, var(--accent) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left-color: var(--accent);
+}
+.wt {
+  color: color-mix(in srgb, var(--accent) 50%, var(--fg));
+  font-weight: 700;
 }
 .w-main {
   min-width: 0;
