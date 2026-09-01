@@ -263,7 +263,7 @@ function again() {
   endSession()
   router.push({ name: 'train' })
 }
-function toFolders() {
+function toProgress() {
   endSession()
   router.push('/')
 }
@@ -449,7 +449,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
       </ul>
 
       <div class="pair">
-        <button class="wide" @click="toFolders">к темам</button>
+        <button class="wide" @click="toProgress">к прогрессу</button>
         <div class="frame" style="flex: 1">
           <button class="primary wide" @click="again">ещё</button>
         </div>

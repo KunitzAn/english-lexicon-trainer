@@ -88,7 +88,7 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <button class="ghost back" @click="router.push('/')">← темы</button>
+    <button class="ghost back" @click="router.push('/folders')">← темы</button>
     <div class="row head">
       <h1>все слова</h1>
       <button class="ghost" @click="router.push('/words/add')">＋ слово</button>

@@ -141,3 +141,16 @@ export interface QuotaInfo {
   limit: number
   enabled: boolean
 }
+
+// --- этап 6: прогресс (главная) ---
+
+export interface StatsInfo {
+  words_total: number
+  senses_total: number
+  senses_attempted: number
+  correct: number
+  incorrect: number
+  accuracy: number | null
+  streak_days: number
+  active_days: number
+}

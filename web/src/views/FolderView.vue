@@ -55,7 +55,7 @@ async function removeFolder() {
   if (!confirm(`Удалить тему «${name.value}»? Слова останутся.`)) return
   try {
     await api(`/folders/${folderId.value}`, { method: 'DELETE' })
-    router.push('/')
+    router.push('/folders')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -73,7 +73,7 @@ onMounted(load)
 
 <template>
   <main class="page">
-    <button class="ghost back" @click="router.push('/')">← темы</button>
+    <button class="ghost back" @click="router.push('/folders')">← темы</button>
 
     <div class="row head">
       <h1>{{ name || '…' }}</h1>

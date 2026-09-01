@@ -7,6 +7,7 @@ import type { FolderRow } from '@/lib/types'
 
 const router = useRouter()
 const folders = ref<FolderRow[]>([])
+const total = ref(0)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const newName = ref('')
@@ -16,8 +17,9 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const res = await api<{ folders: FolderRow[] }>('/folders')
+    const res = await api<{ folders: FolderRow[]; total: number }>('/folders')
     folders.value = res.folders
+    total.value = res.total
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -53,25 +55,28 @@ onMounted(load)
       ]"
     />
 
+    <button class="ghost back" @click="router.push('/')">← прогресс</button>
     <h1>темы</h1>
-
-    <div class="frame cta-frame">
-      <button class="primary cta" @click="router.push('/train')">
-        тренировка
-        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M8 5v14l11-7-11-7Z" fill="currentColor" />
-        </svg>
-      </button>
-    </div>
-    <div class="all-link">
-      <button class="ghost" @click="router.push('/words')">все слова →</button>
-    </div>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="loading" class="muted">загрузка…</p>
 
     <template v-else>
       <ul class="themes">
+        <li>
+          <router-link to="/words" class="theme allwords">
+            <span class="ic">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2" />
+                <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2" />
+                <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2" />
+                <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2" />
+              </svg>
+            </span>
+            <span class="tname disp">все слова</span>
+            <span class="tmeta mono">{{ total }}</span>
+          </router-link>
+        </li>
         <li v-for="f in folders" :key="f.id">
           <router-link :to="`/folders/${f.id}`" class="theme">
             <span class="tname disp">{{ f.name }}</span>
@@ -79,7 +84,7 @@ onMounted(load)
           </router-link>
         </li>
       </ul>
-      <p v-if="!folders.length" class="muted">пока пусто — заведите первую тему</p>
+      <p v-if="!folders.length" class="muted">других тем пока нет</p>
 
       <form class="new-theme" @submit.prevent="create">
         <input v-model="newName" placeholder="новая тема…" />
@@ -90,21 +95,8 @@ onMounted(load)
 </template>
 
 <style scoped>
-.cta-frame {
-  margin-top: 0.5rem;
-}
-.cta {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.95rem;
-  font-size: 1.05rem;
-}
-.all-link {
-  text-align: center;
-  margin: 0.75rem 0 1.5rem;
+.back {
+  margin: 0 0 0.75rem;
 }
 
 .themes {
@@ -125,6 +117,22 @@ onMounted(load)
 }
 .theme:hover {
   filter: brightness(1.1);
+}
+.theme.allwords {
+  background: linear-gradient(160deg, var(--sapphire-a), var(--sapphire-b));
+  color: #0c1230;
+}
+.theme.allwords .tname,
+.theme.allwords .tmeta {
+  color: #0c1230;
+}
+.theme.allwords .tmeta {
+  opacity: 0.65;
+}
+.ic {
+  flex: none;
+  display: flex;
+  color: #0c1230;
 }
 .tname {
   flex: 1;

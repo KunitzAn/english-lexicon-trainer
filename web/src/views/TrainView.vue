@@ -129,7 +129,7 @@ async function start() {
       ]"
     />
 
-    <button class="ghost back" @click="router.push('/')">← темы</button>
+    <button class="ghost back" @click="router.push('/')">← прогресс</button>
     <h1>тренировка</h1>
     <p v-if="quota?.enabled" class="mono quota">ии сегодня · {{ quota.left }}/{{ quota.limit }}</p>
 

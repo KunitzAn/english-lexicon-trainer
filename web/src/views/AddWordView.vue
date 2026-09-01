@@ -139,7 +139,7 @@ async function save() {
 
 <template>
   <main class="page">
-    <button class="ghost back" @click="router.push('/')">← темы</button>
+    <button class="ghost back" @click="router.push('/folders')">← темы</button>
     <h1>новое слово</h1>
 
     <form class="add" @submit.prevent="lookup">
