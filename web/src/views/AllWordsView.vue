@@ -3,14 +3,26 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
+import {
+  nextSortMode,
+  sortWords,
+  WORD_SORT_LABEL,
+  type WordSortMode,
+} from '@/lib/wordSort'
 import type { FolderRow, WordListItem } from '@/lib/types'
 
 const router = useRouter()
 
 /** Самоцветные акценты по кругу — рамки строк словаря. */
 const ACCENTS = ['#22d9b3', '#b6f04a', '#ffc23d', '#8fa8ff', '#c98bff', '#ff6ba6']
+const tzq = () => `tz_offset=${-new Date().getTimezoneOffset()}`
 
 const words = ref<WordListItem[]>([])
+const sortMode = ref<WordSortMode>('learned')
+const shown = computed(() => sortWords(words.value, sortMode.value))
+function cycleSort() {
+  sortMode.value = nextSortMode(sortMode.value)
+}
 const folders = ref<FolderRow[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -24,7 +36,7 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   try {
     const [w, f] = await Promise.all([
-      api<{ words: WordListItem[] }>('/words'),
+      api<{ words: WordListItem[] }>(`/words?${tzq()}`),
       api<{ folders: FolderRow[] }>('/folders'),
     ])
     words.value = w.words
@@ -118,12 +130,16 @@ useRefreshOnFocus(() => {
         </template>
       </div>
 
+      <div v-if="words.length" class="sortbar">
+        <button class="ghost" @click="cycleSort">⇅ {{ WORD_SORT_LABEL[sortMode] }}</button>
+      </div>
+
       <ul class="words">
         <li
-          v-for="(w, i) in words"
+          v-for="w in shown"
           :key="w.id"
           class="wrow"
-          :style="{ '--accent': ACCENTS[i % ACCENTS.length] }"
+          :style="{ '--accent': ACCENTS[w.id % ACCENTS.length] }"
         >
           <input
             type="checkbox"
@@ -132,9 +148,11 @@ useRefreshOnFocus(() => {
             @change="toggle(w.id)"
           />
           <router-link :to="`/words/${w.id}`" class="wbody">
+            <span class="fill" :style="{ width: (w.mastery ?? 0) + '%' }" />
             <div class="wmain">
               <span class="wtext mono">{{ w.text }}</span>
               <span class="wtr">{{ w.translations.join(', ') }}</span>
+              <span class="wmast">{{ (w.mastery ?? 0) === 0 ? 'новое' : w.mastery + '%' }}</span>
             </div>
             <div class="wmeta">{{ folderNames(w.folder_ids) }}</div>
           </router-link>
@@ -194,6 +212,8 @@ useRefreshOnFocus(() => {
   accent-color: var(--accent);
 }
 .wbody {
+  position: relative;
+  overflow: hidden;
   flex: 1;
   min-width: 0;
   padding: 0.8rem 1rem;
@@ -209,6 +229,17 @@ useRefreshOnFocus(() => {
   border-left-color: var(--accent);
   color: var(--fg);
 }
+/* заливка выученности слева направо */
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  pointer-events: none;
+}
+.wmain,
+.wmeta {
+  position: relative;
+}
 .wmain {
   display: flex;
   flex-wrap: wrap;
@@ -221,10 +252,25 @@ useRefreshOnFocus(() => {
 }
 .wtr {
   color: var(--muted);
+  min-width: 0;
+}
+.wmast {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--faint);
 }
 .wmeta {
   color: var(--faint);
   font-size: 0.78rem;
   margin-top: 0.2rem;
+}
+
+.sortbar {
+  margin: 0.75rem 0 0;
+}
+.sortbar button {
+  font-size: 0.78rem;
 }
 </style>
