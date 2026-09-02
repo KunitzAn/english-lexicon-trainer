@@ -90,7 +90,29 @@ function matchGroups(cards: TrainingCard[]): TrainingCard[][] {
   return groups
 }
 
-function toContextExercise(se: ServerExercise): Exercise | null {
+/**
+ * Банк для `gap`: правильный ответ + дистракторы из английских слов текущего
+ * набора тренировки (чтобы нельзя было угадать «своё» слово из списка, не
+ * помня перевод). Если слов в наборе мало — добираем из банка модели.
+ */
+function gapBank(answer: string, text: string, enPool: string[], llmBank: string[]): string[] {
+  const textLc = text.toLowerCase()
+  const seen = new Set([norm(answer)])
+  const distractors: string[] = []
+  for (const src of [enPool, llmBank]) {
+    for (const t of src) {
+      const k = norm(t)
+      if (seen.has(k) || textLc.includes(k)) continue
+      seen.add(k)
+      distractors.push(t)
+      if (distractors.length === 3) break
+    }
+    if (distractors.length === 3) break
+  }
+  return shuffle([answer, ...distractors])
+}
+
+function toContextExercise(se: ServerExercise, enPool: string[]): Exercise | null {
   const p = se.payload
   const gloss = p.glossary?.[0]
   if (!gloss) return null
@@ -100,7 +122,7 @@ function toContextExercise(se: ServerExercise): Exercise | null {
       exercise_id: se.id,
       gloss,
       text: p.text,
-      bank: p.bank,
+      bank: gapBank(p.answer, p.text, enPool, p.bank ?? []),
       answer: p.answer,
     }
   }
@@ -121,12 +143,14 @@ export function buildExercises(
   format: TrainingFormat = 'mix',
 ): Exercise[] {
   const pool = set.distractor_pool ?? []
+  // английские слова набора — дистракторы для gap
+  const enPool = shuffle(set.cards.map((c) => c.text))
 
   // контекстные упражнения от ИИ — по одному на значение (в режиме «карточки» игнор)
   const ctxBySense = new Map<number, Exercise>()
   if (format !== 'cards') {
     for (const se of context) {
-      const ex = toContextExercise(se)
+      const ex = toContextExercise(se, enPool)
       if (ex && !ctxBySense.has(se.payload.word_sense_id)) {
         ctxBySense.set(se.payload.word_sense_id, ex)
       }

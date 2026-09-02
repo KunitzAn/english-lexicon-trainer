@@ -117,18 +117,21 @@ async function save() {
   saving.value = true
   error.value = null
   try {
-    const res = await api<{ word_id: number; created: boolean; added_senses: number }>(
-      '/words',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          text: text.value,
-          folder_ids: [...selectedFolders],
-          senses,
-        }),
-      },
+    await api<{ word_id: number; created: boolean; added_senses: number }>('/words', {
+      method: 'POST',
+      body: JSON.stringify({
+        text: text.value,
+        folder_ids: [...selectedFolders],
+        senses,
+      }),
+    })
+    // назад в список, откуда пришли: тема (если добавляли в неё) или все слова
+    const fromFolder = Number(route.query.folder)
+    router.push(
+      Number.isInteger(fromFolder) && fromFolder > 0
+        ? `/folders/${fromFolder}`
+        : '/words',
     )
-    router.push(`/words/${res.word_id}`)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
