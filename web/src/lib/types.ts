@@ -148,6 +148,21 @@ export interface QuotaInfo {
   enabled: boolean
 }
 
+// --- этап 5.1: настройки модели выученности ---
+
+export interface MasterySettings {
+  gainNewDay: number
+  gainSameDay: number
+  gainRepeatMore: number
+  penaltyWrong: number
+  learnedThreshold: number
+  decayEnabled: boolean
+  decayPerDay: number
+  decayAfterLearned: boolean
+  decayPerDayLearned: number
+  decayGraceDays: number
+}
+
 // --- этап 5: разбор сессии (сохраняется на сервер) ---
 
 export interface SessionSenseRef {

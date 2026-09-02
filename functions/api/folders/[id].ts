@@ -5,7 +5,12 @@ import type { Env } from '../../_lib/env'
 import { loadFolder } from '../../_lib/guard'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
-import { masteryForSenses, tzOffsetOf, wordMastery } from '../../_lib/mastery'
+import {
+  loadMasterySettings,
+  masteryForSenses,
+  tzOffsetOf,
+  wordMastery,
+} from '../../_lib/mastery'
 import { folders, wordFolders, words, wordSenses } from '../../../db/schema'
 
 export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
@@ -66,6 +71,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     ctx.data.userId,
     senseRows.map((s) => s.id),
     tzOffsetOf(new URL(ctx.request.url)),
+    await loadMasterySettings(db, ctx.data.userId),
   )
 
   return json({

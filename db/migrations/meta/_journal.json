@@ -50,6 +50,13 @@
       "when": 1788296138149,
       "tag": "0006_smooth_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788367614248,
+      "tag": "0007_chief_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

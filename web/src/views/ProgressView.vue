@@ -67,7 +67,15 @@ const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%'
       ]"
     />
 
-    <h1>привет{{ auth.user?.name ? ', ' + auth.user.name : '' }}</h1>
+    <div class="hrow">
+      <h1>привет{{ auth.user?.name ? ', ' + auth.user.name : '' }}</h1>
+      <button class="ghost gear" aria-label="настройки выученности" @click="router.push('/settings')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2" />
+          <path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" stroke="currentColor" stroke-width="2" />
+        </svg>
+      </button>
+    </div>
     <p class="sub muted">твой прогресс в лексике</p>
 
     <div v-if="unfinished" class="frame resume-banner-frame">
@@ -132,6 +140,17 @@ const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%'
 </template>
 
 <style scoped>
+.hrow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.gear {
+  flex: none;
+  padding: 0.45rem;
+  display: flex;
+}
 .sub {
   margin: -0.4rem 0 1.5rem;
   font-size: 0.9rem;

@@ -9,6 +9,7 @@ import AddWordView from '@/views/AddWordView.vue'
 import WordView from '@/views/WordView.vue'
 import TrainView from '@/views/TrainView.vue'
 import SessionView from '@/views/SessionView.vue'
+import SettingsView from '@/views/SettingsView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -22,6 +23,7 @@ export const router = createRouter({
     { path: '/words/:id', name: 'word', component: WordView, meta: { requiresAuth: true } },
     { path: '/train', name: 'train', component: TrainView, meta: { requiresAuth: true } },
     { path: '/train/run', name: 'train-run', component: SessionView, meta: { requiresAuth: true } },
+    { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
   ],
 })
 

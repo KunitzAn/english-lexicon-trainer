@@ -5,7 +5,12 @@ import type { Env } from '../../_lib/env'
 import { filterOwnedFolderIds } from '../../_lib/guard'
 import { readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
-import { masteryForSenses, tzOffsetOf, wordMastery } from '../../_lib/mastery'
+import {
+  loadMasterySettings,
+  masteryForSenses,
+  tzOffsetOf,
+  wordMastery,
+} from '../../_lib/mastery'
 import {
   cleanText,
   isPhrase,
@@ -85,6 +90,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     uid,
     senses.map((s) => s.id),
     tzOffsetOf(new URL(ctx.request.url)),
+    await loadMasterySettings(db, uid),
   )
 
   const links = ids.length

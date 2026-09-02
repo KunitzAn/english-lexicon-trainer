@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Db } from './db'
-import { attempts } from '../../db/schema'
+import { attempts, users } from '../../db/schema'
 
 /**
  * Модель выученности значения (этап 5.1). Проценты 0–100, считается из `attempts`
@@ -169,4 +169,44 @@ export function wordMastery(
 export function tzOffsetOf(url: URL): number {
   const raw = Number(url.searchParams.get('tz_offset'))
   return Number.isFinite(raw) ? Math.max(-840, Math.min(840, Math.trunc(raw))) : 0
+}
+
+/** Слить пришедший объект с дефолтами + кламп диапазонов. Лишние ключи отбрасываются. */
+export function mergeMasterySettings(raw: unknown): MasterySettings {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const num = (k: keyof MasterySettings, min: number, max: number): number => {
+    const v = Number(o[k])
+    return Number.isFinite(v)
+      ? Math.max(min, Math.min(max, Math.round(v)))
+      : (DEFAULT_MASTERY_SETTINGS[k] as number)
+  }
+  const bool = (k: keyof MasterySettings): boolean =>
+    typeof o[k] === 'boolean'
+      ? (o[k] as boolean)
+      : (DEFAULT_MASTERY_SETTINGS[k] as boolean)
+  return {
+    gainNewDay: num('gainNewDay', 1, 100),
+    gainSameDay: num('gainSameDay', 0, 100),
+    gainRepeatMore: num('gainRepeatMore', 0, 100),
+    penaltyWrong: num('penaltyWrong', 0, 100),
+    learnedThreshold: num('learnedThreshold', 1, 100),
+    decayEnabled: bool('decayEnabled'),
+    decayPerDay: num('decayPerDay', 0, 100),
+    decayAfterLearned: bool('decayAfterLearned'),
+    decayPerDayLearned: num('decayPerDayLearned', 0, 100),
+    decayGraceDays: num('decayGraceDays', 0, 60),
+  }
+}
+
+/** Настройки выученности пользователя (дефолты, поверх — `users.settings.mastery`). */
+export async function loadMasterySettings(
+  db: Db,
+  userId: number,
+): Promise<MasterySettings> {
+  const [u] = await db
+    .select({ settings: users.settings })
+    .from(users)
+    .where(eq(users.id, userId))
+  const raw = (u?.settings as Record<string, unknown> | null)?.mastery
+  return mergeMasterySettings(raw)
 }

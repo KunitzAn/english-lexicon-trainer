@@ -24,6 +24,8 @@ export const users = pgTable('users', {
   telegramId: bigint('telegram_id', { mode: 'number' }).notNull().unique(),
   name: text('name'),
   isOwner: boolean('is_owner').notNull().default(false),
+  /** Пользовательские настройки (этап 5.1: `settings.mastery` — модель выученности). */
+  settings: jsonb('settings').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
