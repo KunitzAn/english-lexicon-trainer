@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
+import MasteryBar from '@/components/MasteryBar.vue'
 import type { FolderRow, SenseRow, WordDetail } from '@/lib/types'
 
 const route = useRoute()
@@ -24,7 +25,9 @@ async function load() {
   loading.value = true
   try {
     const [w, f] = await Promise.all([
-      api<{ word: WordDetail }>(`/words/${id}`),
+      api<{ word: WordDetail }>(
+        `/words/${id}?tz_offset=${-new Date().getTimezoneOffset()}`,
+      ),
       api<{ folders: FolderRow[] }>('/folders'),
     ])
     word.value = w.word
@@ -135,12 +138,17 @@ onMounted(load)
         <input v-model="editText" />
         <input v-model="editTranscription" placeholder="транскрипция" />
         <p v-if="word.is_phrase" class="muted small">фраза</p>
+        <div class="wmast">
+          <span class="label">выученность</span>
+          <MasteryBar :value="word.mastery ?? 0" />
+        </div>
         <button @click="saveWord">сохранить слово</button>
       </section>
 
       <section class="card">
         <h2>Значения</h2>
         <div v-for="s in word.senses" :key="s.id" class="sense">
+          <MasteryBar :value="s.mastery ?? 0" />
           <input v-model="s.translation" placeholder="перевод" />
           <button class="link" @click="toggleSense(s.id)">
             {{ expandedSenses.has(s.id) ? 'скрыть детали' : 'детали' }}
@@ -204,8 +212,20 @@ onMounted(load)
 }
 .sense {
   display: grid;
-  gap: 0.25rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid #23262e;
+  gap: 0.35rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line);
+}
+.wmast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+.wmast .label {
+  flex: none;
+}
+.wmast :deep(.mb) {
+  flex: 1;
 }
 </style>
