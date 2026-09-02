@@ -5,6 +5,7 @@ import type { Env } from '../../_lib/env'
 import { loadWord } from '../../_lib/guard'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
+import { masteryForSenses, tzOffsetOf, wordMastery } from '../../_lib/mastery'
 import { cleanText, isPhrase, normText } from '../../_lib/normalize'
 import { wordFolders, words, wordSenses } from '../../../db/schema'
 
@@ -36,6 +37,14 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     .from(wordFolders)
     .where(eq(wordFolders.wordId, id))
 
+  const senseIds = senses.map((s) => s.id)
+  const senseMastery = await masteryForSenses(
+    db,
+    ctx.data.userId,
+    senseIds,
+    tzOffsetOf(new URL(ctx.request.url)),
+  )
+
   return json({
     word: {
       id: word.id,
@@ -43,7 +52,8 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
       transcription: word.transcription,
       is_phrase: word.isPhrase,
       folder_ids: folderRows.map((f) => f.folder_id),
-      senses,
+      mastery: wordMastery(senseMastery, senseIds),
+      senses: senses.map((s) => ({ ...s, mastery: senseMastery.get(s.id) ?? 0 })),
     },
   })
 }

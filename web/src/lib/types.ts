@@ -11,6 +11,8 @@ export interface WordListItem {
   is_phrase: boolean
   translations: string[]
   folder_ids?: number[]
+  /** выученность слова 0..100 — минимум по значениям (этап 5.1) */
+  mastery?: number
 }
 
 export interface SenseRow {
@@ -21,6 +23,8 @@ export interface SenseRow {
   example: string | null
   source: string
   position: number
+  /** выученность значения 0..100 (этап 5.1) */
+  mastery?: number
 }
 
 export interface WordDetail {
@@ -30,6 +34,8 @@ export interface WordDetail {
   is_phrase: boolean
   folder_ids: number[]
   senses: SenseRow[]
+  /** выученность слова 0..100 — минимум по значениям (этап 5.1) */
+  mastery?: number
 }
 
 export interface LookupVariant {

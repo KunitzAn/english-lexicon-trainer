@@ -5,6 +5,7 @@ import type { Env } from '../../_lib/env'
 import { loadFolder } from '../../_lib/guard'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
+import { masteryForSenses, tzOffsetOf, wordMastery } from '../../_lib/mastery'
 import { folders, wordFolders, words, wordSenses } from '../../../db/schema'
 
 export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
@@ -38,6 +39,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   const senseRows = ids.length
     ? await db
         .select({
+          id: wordSenses.id,
           word_id: wordSenses.wordId,
           translation: wordSenses.translation,
         })
@@ -49,15 +51,30 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     : []
 
   const byWord = new Map<number, string[]>()
+  const senseIdsByWord = new Map<number, number[]>()
   for (const s of senseRows) {
     const arr = byWord.get(s.word_id) ?? []
     arr.push(s.translation)
     byWord.set(s.word_id, arr)
+    const sids = senseIdsByWord.get(s.word_id) ?? []
+    sids.push(s.id)
+    senseIdsByWord.set(s.word_id, sids)
   }
+
+  const senseMastery = await masteryForSenses(
+    db,
+    ctx.data.userId,
+    senseRows.map((s) => s.id),
+    tzOffsetOf(new URL(ctx.request.url)),
+  )
 
   return json({
     folder: { id: folder.id, name: folder.name },
-    words: wordRows.map((w) => ({ ...w, translations: byWord.get(w.id) ?? [] })),
+    words: wordRows.map((w) => ({
+      ...w,
+      translations: byWord.get(w.id) ?? [],
+      mastery: wordMastery(senseMastery, senseIdsByWord.get(w.id) ?? []),
+    })),
   })
 }
 
