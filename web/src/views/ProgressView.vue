@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { auth } from '@/auth'
 import { clearServerSession, fetchServerSession } from '@/lib/session'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import Sparkles from '@/components/Sparkles.vue'
+import MasteryBar from '@/components/MasteryBar.vue'
 import type { StatsInfo } from '@/lib/types'
 
 const router = useRouter()
@@ -56,6 +57,35 @@ useRefreshOnFocus(() => {
 })
 
 const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%')
+
+/** 84 ячейки (12 недель), от старых к новым, с числом попыток за день. */
+const heatCells = computed(() => {
+  const s = stats.value
+  if (!s) return []
+  const map = new Map(s.heatmap.map((h) => [h.day, h.count]))
+  const out: { day: string; count: number }[] = []
+  const now = Date.now()
+  for (let i = 83; i >= 0; i--) {
+    const day = new Date(now - i * 86_400_000).toISOString().slice(0, 10)
+    out.push({ day, count: map.get(day) ?? 0 })
+  }
+  return out
+})
+const heatLevel = (c: number) =>
+  c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4
+
+const bucketBar = computed(() => {
+  const b = stats.value?.buckets
+  const total = b ? b.new + b.in_progress + b.learned : 0
+  if (!b || !total) return null
+  return {
+    ...b,
+    total,
+    newPct: (b.new / total) * 100,
+    progPct: (b.in_progress / total) * 100,
+    learnedPct: (b.learned / total) * 100,
+  }
+})
 </script>
 
 <template>
@@ -135,6 +165,61 @@ const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%'
           <span class="disp t">слова</span>
         </button>
       </div>
+
+      <!-- разбивка по выученности -->
+      <template v-if="bucketBar">
+        <p class="label sec">по выученности</p>
+        <div class="buckets">
+          <span class="b-seg b-new" :style="{ width: bucketBar.newPct + '%' }" />
+          <span class="b-seg b-prog" :style="{ width: bucketBar.progPct + '%' }" />
+          <span class="b-seg b-learned" :style="{ width: bucketBar.learnedPct + '%' }" />
+        </div>
+        <div class="b-legend mono">
+          <span>новое {{ bucketBar.new }}</span>
+          <span class="amber">в процессе {{ bucketBar.in_progress }}</span>
+          <span class="ok">выучено {{ bucketBar.learned }}</span>
+        </div>
+      </template>
+
+      <!-- выученность по темам -->
+      <template v-if="stats.themes.length">
+        <p class="label sec">темы</p>
+        <ul class="themes">
+          <li v-for="t in stats.themes" :key="t.id" @click="router.push(`/folders/${t.id}`)">
+            <div class="t-head">
+              <span class="t-name disp">{{ t.name }}</span>
+              <span class="t-meta mono">{{ t.mastery }}%</span>
+            </div>
+            <MasteryBar :value="t.mastery" :label="false" />
+          </li>
+        </ul>
+      </template>
+
+      <!-- тепловая карта активности -->
+      <template v-if="stats.active_days">
+        <p class="label sec">активность · 12 недель</p>
+        <div class="heat">
+          <span
+            v-for="c in heatCells"
+            :key="c.day"
+            class="hc"
+            :class="'l' + heatLevel(c.count)"
+            :title="`${c.day}: ${c.count}`"
+          />
+        </div>
+      </template>
+
+      <!-- стоит повторить -->
+      <template v-if="stats.weak.length">
+        <p class="label sec">стоит повторить</p>
+        <ul class="weak">
+          <li v-for="(w, i) in stats.weak" :key="i" @click="router.push(`/words/${w.word_id}`)">
+            <span class="mono w-t">{{ w.text }}</span>
+            <span class="muted w-tr">{{ w.translation }}</span>
+            <span class="mono w-m">{{ w.mastery }}%</span>
+          </li>
+        </ul>
+      </template>
     </template>
   </main>
 </template>
@@ -255,5 +340,145 @@ const pct = (a: number | null) => (a == null ? '—' : Math.round(a * 100) + '%'
 .tile.amethyst {
   background: linear-gradient(160deg, var(--amethyst-a), var(--amethyst-b));
   color: #1f0836;
+}
+
+/* --- v2 --- */
+.sec {
+  display: block;
+  margin: 1.75rem 0 0.6rem;
+}
+
+.buckets {
+  display: flex;
+  height: 10px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--raise);
+}
+.b-seg {
+  height: 100%;
+}
+.b-new {
+  background: var(--raise);
+}
+.b-prog {
+  background: var(--amber);
+}
+.b-learned {
+  background: var(--ok-a);
+}
+.b-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--faint);
+}
+.b-legend .amber {
+  color: var(--amber);
+}
+.b-legend .ok {
+  color: var(--ok-a);
+}
+
+.themes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.themes li {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+.themes li:hover {
+  filter: brightness(1.1);
+}
+.t-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.45rem;
+}
+.t-name {
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+.t-meta {
+  flex: none;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--faint);
+}
+
+.heat {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+}
+.hc {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--raise);
+}
+.hc.l1 {
+  background: color-mix(in srgb, var(--hero-a) 28%, var(--raise));
+}
+.hc.l2 {
+  background: color-mix(in srgb, var(--hero-a) 50%, var(--raise));
+}
+.hc.l3 {
+  background: color-mix(in srgb, var(--hero-a) 72%, var(--raise));
+}
+.hc.l4 {
+  background: var(--hero-a);
+}
+
+.weak {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.weak li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+}
+.weak li:hover {
+  filter: brightness(1.1);
+}
+.w-t {
+  font-weight: 700;
+  color: var(--fg-dim);
+}
+.w-tr {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.w-m {
+  flex: none;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--bad-text);
 }
 </style>

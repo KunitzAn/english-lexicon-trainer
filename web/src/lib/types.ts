@@ -186,4 +186,9 @@ export interface StatsInfo {
   accuracy: number | null
   streak_days: number
   active_days: number
+  // v2 (этап 5.1, пункт D)
+  buckets: { new: number; in_progress: number; learned: number }
+  themes: { id: number; name: string; word_count: number; mastery: number }[]
+  heatmap: { day: string; count: number }[]
+  weak: { word_id: number; text: string; translation: string; mastery: number }[]
 }
