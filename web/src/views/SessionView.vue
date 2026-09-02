@@ -12,6 +12,7 @@ import {
 } from '@/lib/session'
 import {
   buildExercises,
+  norm,
   optIsCorrect,
   type Exercise,
   type MatchExercise,
@@ -24,7 +25,6 @@ import type {
 import Sparkles from '@/components/Sparkles.vue'
 
 const router = useRouter()
-const norm = (s: string) => s.trim().toLowerCase()
 
 type SenseRef = SessionSenseRef
 
@@ -409,7 +409,9 @@ const pad = (n: number) => String(n).padStart(2, '0')
           </button>
         </div>
 
-        <p v-if="hintShown" class="ans disp">{{ peekText }}</p>
+        <p v-if="hintShown || (picked && current.kind === 'gap')" class="ans disp">
+          {{ peekText }}
+        </p>
         <button v-if="!picked && !hintShown" class="link peek" @click="hintShown = true">
           подсмотреть перевод
         </button>

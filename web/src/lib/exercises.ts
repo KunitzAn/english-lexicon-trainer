@@ -45,7 +45,9 @@ export type Exercise =
   | GapExercise
   | ClickableExercise
 
-const norm = (s: string) => s.trim().toLowerCase()
+/** Нормализация для сравнения ответов: ё=е, без регистра и краевых пробелов. */
+export const norm = (s: string) =>
+  s.normalize('NFC').trim().toLowerCase().replace(/ё/g, 'е')
 
 export function shuffle<T>(arr: readonly T[]): T[] {
   const a = [...arr]

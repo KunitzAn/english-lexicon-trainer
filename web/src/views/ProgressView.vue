@@ -16,6 +16,9 @@ const error = ref<string | null>(null)
 /** Незаконченная тренировка (для баннера «продолжить / сбросить»). */
 const unfinished = ref<{ idx: number; total: number } | null>(null)
 
+/** Серию дней считаем по локальной полуночи — шлём свой сдвиг от UTC. */
+const statsPath = () => `/stats?tz_offset=${-new Date().getTimezoneOffset()}`
+
 async function checkUnfinished() {
   const s = await fetchServerSession()
   unfinished.value = s
@@ -25,7 +28,7 @@ async function checkUnfinished() {
 
 async function refreshStats() {
   try {
-    stats.value = await api<StatsInfo>('/stats')
+    stats.value = await api<StatsInfo>(statsPath())
   } catch {
     /* тихо — на экране уже есть данные */
   }
@@ -38,7 +41,7 @@ function dropUnfinished() {
 
 onMounted(async () => {
   try {
-    stats.value = await api<StatsInfo>('/stats')
+    stats.value = await api<StatsInfo>(statsPath())
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
