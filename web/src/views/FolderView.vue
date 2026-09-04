@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
+import { ACCENTS } from '@/lib/palette'
 import {
   nextSortMode,
   sortWords,
@@ -10,16 +11,17 @@ import {
   type WordSortMode,
 } from '@/lib/wordSort'
 import type { WordListItem } from '@/lib/types'
+import IconPicker from '@/components/IconPicker.vue'
 
 const route = useRoute()
 const router = useRouter()
 
-/** Самоцветные акценты по кругу — рамки строк слов. */
-const ACCENTS = ['#22d9b3', '#b6f04a', '#ffc23d', '#8fa8ff', '#c98bff', '#ff6ba6']
 const tzq = () => `tz_offset=${-new Date().getTimezoneOffset()}`
 
 const folderId = ref(Number(route.params.id))
 const name = ref('')
+const icon = ref<string | null>(null)
+const color = ref<string | null>(null)
 const words = ref<WordListItem[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -36,10 +38,12 @@ async function load() {
   error.value = null
   try {
     const res = await api<{
-      folder: { id: number; name: string }
+      folder: { id: number; name: string; icon: string | null; color: string | null }
       words: WordListItem[]
     }>(`/folders/${folderId.value}?${tzq()}`)
     name.value = res.folder.name
+    icon.value = res.folder.icon
+    color.value = res.folder.color
     words.value = res.words
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -62,6 +66,22 @@ async function rename() {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     renaming.value = false
+  }
+}
+
+async function saveIcon(next: { icon: string | null; color: string | null }) {
+  const prev = { icon: icon.value, color: color.value }
+  icon.value = next.icon
+  color.value = next.color
+  try {
+    await api(`/folders/${folderId.value}`, {
+      method: 'PATCH',
+      body: JSON.stringify(next),
+    })
+  } catch (e) {
+    icon.value = prev.icon
+    color.value = prev.color
+    error.value = e instanceof Error ? e.message : String(e)
   }
 }
 
@@ -91,7 +111,10 @@ useRefreshOnFocus(load)
     <button class="ghost back" @click="router.push('/folders')">← темы</button>
 
     <div class="row head">
-      <h1>{{ name || '…' }}</h1>
+      <span class="htitle">
+        <IconPicker :icon="icon" :color="color" @save="saveIcon" />
+        <h1>{{ name || '…' }}</h1>
+      </span>
       <span class="acts">
         <button class="link" :disabled="renaming" @click="rename">переименовать</button>
         <button class="link" @click="removeFolder">удалить</button>
@@ -138,6 +161,16 @@ useRefreshOnFocus(load)
 }
 .head {
   align-items: flex-start;
+}
+.htitle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.htitle h1 {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 .acts {
   display: flex;

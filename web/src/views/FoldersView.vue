@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import Sparkles from '@/components/Sparkles.vue'
+import IconPicker from '@/components/IconPicker.vue'
 import type { FolderRow } from '@/lib/types'
 
 const router = useRouter()
@@ -12,6 +13,8 @@ const total = ref(0)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const newName = ref('')
+const newIcon = ref<string | null>(null)
+const newColor = ref<string | null>(null)
 const creating = ref(false)
 
 async function load() {
@@ -33,8 +36,13 @@ async function create() {
   if (!name) return
   creating.value = true
   try {
-    await api('/folders', { method: 'POST', body: JSON.stringify({ name }) })
+    await api('/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name, icon: newIcon.value, color: newColor.value }),
+    })
     newName.value = ''
+    newIcon.value = null
+    newColor.value = null
     await load()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -80,7 +88,8 @@ useRefreshOnFocus(load)
           </router-link>
         </li>
         <li v-for="f in folders" :key="f.id">
-          <router-link :to="`/folders/${f.id}`" class="theme">
+          <router-link :to="`/folders/${f.id}`" class="theme" :style="{ '--ticon-color': f.color ?? 'var(--raise)' }">
+            <span class="ticon" :class="{ empty: !f.icon }">{{ f.icon || '📁' }}</span>
             <span class="tname disp">{{ f.name }}</span>
             <span class="tmeta mono">{{ f.word_count }}</span>
           </router-link>
@@ -89,6 +98,11 @@ useRefreshOnFocus(load)
       <p v-if="!folders.length" class="muted">других тем пока нет</p>
 
       <form class="new-theme" @submit.prevent="create">
+        <IconPicker
+          :icon="newIcon"
+          :color="newColor"
+          @save="(v) => { newIcon = v.icon; newColor = v.color }"
+        />
         <input v-model="newName" placeholder="новая тема…" />
         <button :disabled="creating || !newName.trim()" aria-label="добавить тему">＋</button>
       </form>
@@ -135,6 +149,22 @@ useRefreshOnFocus(load)
   flex: none;
   display: flex;
   color: #0c1230;
+}
+.ticon {
+  flex: none;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  background: color-mix(in srgb, var(--ticon-color) 30%, var(--card-2));
+  border: 1px solid color-mix(in srgb, var(--ticon-color) 45%, transparent);
+}
+.ticon.empty {
+  opacity: 0.55;
 }
 .tname {
   flex: 1;

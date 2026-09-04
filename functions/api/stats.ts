@@ -99,7 +99,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
 
   // выученность по темам — среднее по словам темы
   const folderRows = await db
-    .select({ id: folders.id, name: folders.name })
+    .select({ id: folders.id, name: folders.name, icon: folders.icon, color: folders.color })
     .from(folders)
     .where(eq(folders.userId, uid))
     .orderBy(folders.name)
@@ -122,6 +122,8 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     return {
       id: f.id,
       name: f.name,
+      icon: f.icon,
+      color: f.color,
       word_count: ws.length,
       mastery: ws.length ? Math.round(sum / ws.length) : 0,
     }

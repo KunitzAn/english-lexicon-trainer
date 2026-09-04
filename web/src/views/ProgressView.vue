@@ -187,7 +187,10 @@ const bucketBar = computed(() => {
         <ul class="themes">
           <li v-for="t in stats.themes" :key="t.id" @click="router.push(`/folders/${t.id}`)">
             <div class="t-head">
-              <span class="t-name disp">{{ t.name }}</span>
+              <span class="t-title">
+                <span v-if="t.icon" class="t-icon">{{ t.icon }}</span>
+                <span class="t-name disp">{{ t.name }}</span>
+              </span>
               <span class="t-meta mono">{{ t.mastery }}%</span>
             </div>
             <MasteryBar :value="t.mastery" :label="false" />
@@ -407,7 +410,21 @@ const bucketBar = computed(() => {
   gap: 1rem;
   margin-bottom: 0.45rem;
 }
+.t-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.t-icon {
+  flex: none;
+  font-size: 0.95rem;
+}
 .t-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 800;
   font-size: 0.9rem;
 }

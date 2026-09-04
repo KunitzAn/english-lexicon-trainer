@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getDb } from '../../_lib/db'
 import type { AuthedData } from '../../_lib/context'
 import type { Env } from '../../_lib/env'
+import { cleanColor, cleanIcon } from '../../_lib/folder-icon'
 import { loadFolder } from '../../_lib/guard'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
@@ -75,7 +76,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   )
 
   return json({
-    folder: { id: folder.id, name: folder.name },
+    folder: { id: folder.id, name: folder.name, icon: folder.icon, color: folder.color },
     words: wordRows.map((w) => ({
       ...w,
       translations: byWord.get(w.id) ?? [],
@@ -89,16 +90,34 @@ export const onRequestPatch: PagesFunction<Env, string, AuthedData> = async (
 ) => {
   const id = numParam(ctx, 'id')
   if (!id) return error(400, 'bad id')
-  const body = await readJson<{ name?: unknown }>(ctx.request)
-  const name = str(body?.name)
-  if (!name) return error(400, 'name required')
+  const body = await readJson<{ name?: unknown; icon?: unknown; color?: unknown }>(
+    ctx.request,
+  )
+  if (!body) return error(400, 'bad body')
+
+  // name — как раньше, непустой; icon/color — необязательны, но раз переданы
+  // (даже пустой строкой = «очистить»), обновляем именно их.
+  const set: { name?: string; icon?: string | null; color?: string | null } = {}
+  if ('name' in body) {
+    const name = str(body.name)
+    if (!name) return error(400, 'name required')
+    set.name = name
+  }
+  if ('icon' in body) set.icon = cleanIcon(body.icon)
+  if ('color' in body) set.color = cleanColor(body.color)
+  if (!Object.keys(set).length) return error(400, 'nothing to update')
 
   const db = getDb(ctx.env)
   const updated = await db
     .update(folders)
-    .set({ name })
+    .set(set)
     .where(and(eq(folders.id, id), eq(folders.userId, ctx.data.userId)))
-    .returning({ id: folders.id, name: folders.name })
+    .returning({
+      id: folders.id,
+      name: folders.name,
+      icon: folders.icon,
+      color: folders.color,
+    })
   if (!updated.length) return error(404, 'not found')
   return json({ folder: updated[0] })
 }

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
+import { ACCENTS } from '@/lib/palette'
 import {
   nextSortMode,
   sortWords,
@@ -13,8 +14,6 @@ import type { FolderRow, WordListItem } from '@/lib/types'
 
 const router = useRouter()
 
-/** Самоцветные акценты по кругу — рамки строк словаря. */
-const ACCENTS = ['#22d9b3', '#b6f04a', '#ffc23d', '#8fa8ff', '#c98bff', '#ff6ba6']
 const tzq = () => `tz_offset=${-new Date().getTimezoneOffset()}`
 
 const words = ref<WordListItem[]>([])

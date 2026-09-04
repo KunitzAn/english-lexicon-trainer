@@ -37,6 +37,10 @@ export const folders = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    /** Иконка темы: один эмодзи (этап 6, бэклог). */
+    icon: text('icon'),
+    /** Цвет иконки — hex из самоцветной палитры (см. web/src/lib/palette.ts). */
+    color: text('color'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -2,6 +2,9 @@ export interface FolderRow {
   id: number
   name: string
   word_count: number
+  /** Иконка темы: эмодзи + цвет (бэклог этапа 6). */
+  icon?: string | null
+  color?: string | null
 }
 
 export interface WordListItem {
@@ -188,7 +191,14 @@ export interface StatsInfo {
   active_days: number
   // v2 (этап 5.1, пункт D)
   buckets: { new: number; in_progress: number; learned: number }
-  themes: { id: number; name: string; word_count: number; mastery: number }[]
+  themes: {
+    id: number
+    name: string
+    word_count: number
+    mastery: number
+    icon?: string | null
+    color?: string | null
+  }[]
   heatmap: { day: string; count: number }[]
   weak: { word_id: number; text: string; translation: string; mastery: number }[]
 }
