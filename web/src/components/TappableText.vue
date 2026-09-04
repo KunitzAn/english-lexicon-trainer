@@ -20,6 +20,13 @@ const loading = ref(false)
 const result = ref<WordLookup | null>(null)
 const addState = ref<Record<string, AddState>>({})
 
+// свой перевод — не только варианты онлайн-словаря
+const customOpen = ref(false)
+const customText = ref('')
+const customBusy = ref(false)
+const customError = ref<string | null>(null)
+const customAdded = ref<string[]>([])
+
 const popEl = ref<HTMLElement | null>(null)
 const popStyle = ref<Record<string, string>>({})
 
@@ -51,6 +58,11 @@ async function tap(ev: MouseEvent, word: string) {
   loading.value = true
   result.value = null
   addState.value = {}
+  customOpen.value = false
+  customText.value = ''
+  customBusy.value = false
+  customError.value = null
+  customAdded.value = []
   await nextTick()
   place()
   const res = await lookupWord(word)
@@ -87,6 +99,40 @@ async function add(translation: string) {
     }
   } catch {
     addState.value = { ...addState.value, [translation]: 'error' }
+  }
+}
+
+async function openCustom() {
+  customOpen.value = true
+  customError.value = null
+  await nextTick()
+  place()
+  ;(popEl.value?.querySelector<HTMLInputElement>('.tt-input'))?.focus()
+}
+
+async function addCustom() {
+  const a = active.value
+  const t = customText.value.trim()
+  if (!a || !t || customBusy.value) return
+  customBusy.value = true
+  customError.value = null
+  try {
+    await api('/words', {
+      method: 'POST',
+      body: JSON.stringify({
+        text: a.word,
+        senses: [{ translation: t, source: 'manual' }],
+        folder_ids: [],
+      }),
+    })
+    customAdded.value = [...customAdded.value, t]
+    customText.value = ''
+  } catch (e) {
+    customError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    customBusy.value = false
+    await nextTick()
+    place()
   }
 }
 
@@ -143,6 +189,25 @@ const addLabel: Record<AddState, string> = {
         </template>
 
         <p v-else class="tt-muted">перевод не найден</p>
+
+        <div v-if="!loading" class="tt-custom">
+          <ul v-if="customAdded.length" class="tt-list">
+            <li v-for="t in customAdded" :key="t">
+              <span class="tt-tr">{{ t }}</span>
+              <span class="tt-add added">добавлено ✓</span>
+            </li>
+          </ul>
+          <button v-if="!customOpen" type="button" class="tt-more" @click="openCustom">
+            + свой перевод
+          </button>
+          <form v-else class="tt-custom-row" @submit.prevent="addCustom">
+            <input v-model="customText" class="tt-input" placeholder="свой перевод" />
+            <button type="submit" class="tt-add" :disabled="!customText.trim() || customBusy">
+              {{ customBusy ? '…' : 'добавить' }}
+            </button>
+          </form>
+          <p v-if="customError" class="tt-muted tt-err">не сохранилось: {{ customError }}</p>
+        </div>
       </div>
     </div>
   </teleport>
@@ -246,5 +311,34 @@ const addLabel: Record<AddState, string> = {
 }
 .tt-add.error {
   color: var(--bad-text);
+}
+
+.tt-custom {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+.tt-custom .tt-list {
+  margin-bottom: 0.35rem;
+}
+.tt-more {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--link);
+}
+.tt-custom-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.tt-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.55rem;
+}
+.tt-err {
+  color: var(--bad-text);
+  margin-top: 0.35rem;
 }
 </style>
