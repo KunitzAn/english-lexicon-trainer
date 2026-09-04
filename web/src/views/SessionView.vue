@@ -23,6 +23,7 @@ import type {
   SessionSenseRef,
 } from '@/lib/types'
 import Sparkles from '@/components/Sparkles.vue'
+import TappableText from '@/components/TappableText.vue'
 
 const router = useRouter()
 
@@ -362,7 +363,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
         </template>
         <template v-else>
           <p class="ans disp">{{ current.card.translation }}</p>
-          <p v-if="current.card.example" class="ex-sent">{{ current.card.example }}</p>
+          <p v-if="current.card.example" class="ex-sent"><TappableText :text="current.card.example" /></p>
           <div class="pair">
             <button class="wide bad-btn" @click="flashRate(false)">не знал</button>
             <button class="wide ok-btn" @click="flashRate(true)">знал</button>
@@ -378,11 +379,11 @@ const pad = (n: number) => String(n).padStart(2, '0')
         </template>
         <template v-else-if="current.kind === 'gap'">
           <p class="label hint-line">вставьте слово</p>
-          <p class="sent">{{ gapParts[0] }}<span class="blank mono">?</span>{{ gapParts[1] }}</p>
+          <p class="sent"><TappableText :text="gapParts[0] || ''" /><span class="blank mono">?</span><TappableText :text="gapParts[1] || ''" /></p>
         </template>
         <template v-else-if="current.kind === 'clickable' && clickParts">
           <p class="label hint-line">что значит выделенное слово?</p>
-          <p class="sent">{{ clickParts.pre }}<b class="hit mono">{{ clickParts.hit }}</b>{{ clickParts.post }}</p>
+          <p class="sent"><TappableText :text="clickParts.pre" /><b class="hit mono">{{ clickParts.hit }}</b><TappableText :text="clickParts.post" /></p>
         </template>
 
         <div class="opts">
@@ -518,7 +519,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
               <span v-if="r.transcription" class="tr mono"> /{{ r.transcription }}/</span>
               <span class="muted"> — {{ r.translation }}</span>
             </div>
-            <div v-if="r.example" class="muted small">{{ r.example }}</div>
+            <div v-if="r.example" class="muted small"><TappableText :text="r.example" /></div>
           </div>
         </li>
       </ul>
