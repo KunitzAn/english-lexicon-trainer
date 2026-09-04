@@ -56,7 +56,8 @@ export function buildPrompt(senses: SenseForGen[]): {
   const system = [
     'You generate English C1/C2 vocabulary exercises.',
     'Output ONLY one valid JSON object. No prose, no markdown, no code fences.',
-    'Shape: {"exercises":[ ... ]}. At most one exercise per given sense.',
+    'Shape: {"exercises":[ ... ]}. EXACTLY ONE exercise per given sense_id — never two',
+    'for the same sense. The array length must not exceed the number of senses given.',
     'It is BETTER to skip a sense than to force it: if the word does not fit its given',
     'sense naturally in a real, idiomatic sentence, omit that sense entirely. A shorter',
     'array of clean exercises beats a full array with strained usage.',
@@ -87,7 +88,8 @@ export function buildPrompt(senses: SenseForGen[]): {
   ].join('\n')
 
   const user =
-    'Senses:\n' +
+    `${senses.length} senses — return AT MOST ${senses.length} exercises, ` +
+    'one per sense_id, "gap"/"clickable" roughly half and half:\n' +
     JSON.stringify(
       senses.map((s) => ({
         sense_id: s.sense_id,

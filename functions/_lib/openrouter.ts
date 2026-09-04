@@ -112,7 +112,9 @@ export async function chatJson(
       model,
       content,
       errorKind: null,
-      detail: finish && finish !== 'stop' ? `finish_reason=${finish}` : null,
+      // всегда пишем finish_reason: по нему видно обрыв по длине даже когда
+      // провайдер не проставил его явно (тогда «—» + оборванный JSON)
+      detail: `finish_reason=${finish ?? '—'}`,
     }
   } catch (e) {
     const name = e instanceof Error ? e.name : ''
@@ -128,16 +130,64 @@ export async function chatJson(
   }
 }
 
-/** Достать JSON-объект из ответа: срезать <think>, ```-заборы, обрезать по скобкам. */
+/**
+ * Достать JSON-объект из ответа: срезать <think>, ```-заборы, обрезать по скобкам.
+ * Если разбор не удался (частая причина — обрыв ответа на полуслове у :free
+ * провайдера, который не вернул finish_reason=length), пытаемся спасти хвост:
+ * собираем все ЦЕЛЫЕ объекты массива "exercises" и закрываем массив вручную.
+ */
 export function extractJson(raw: string): unknown | null {
   let s = raw.trim().replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i)
   if (fence) s = fence[1]!.trim()
   const first = s.indexOf('{')
+  if (first === -1) return null
+  s = s.slice(first)
+
+  // 1) прямой разбор до последней «}»
   const last = s.lastIndexOf('}')
-  if (first === -1 || last <= first) return null
+  if (last > 0) {
+    try {
+      return JSON.parse(s.slice(0, last + 1))
+    } catch {
+      /* обрыв или мусор — идём чинить ниже */
+    }
+  }
+
+  // 2) спасение: вытащить целые объекты массива "exercises"
+  const keyAt = s.indexOf('"exercises"')
+  if (keyAt === -1) return null
+  const arrStart = s.indexOf('[', keyAt)
+  if (arrStart === -1) return null
+
+  const items: string[] = []
+  let depth = 0
+  let inStr = false
+  let esc = false
+  let objStart = -1
+  for (let i = arrStart + 1; i < s.length; i++) {
+    const c = s[i]!
+    if (inStr) {
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === '"') inStr = false
+      continue
+    }
+    if (c === '"') inStr = true
+    else if (c === '{') {
+      if (depth === 0) objStart = i
+      depth++
+    } else if (c === '}') {
+      depth--
+      if (depth === 0 && objStart !== -1) {
+        items.push(s.slice(objStart, i + 1))
+        objStart = -1
+      }
+    } else if (c === ']' && depth === 0) break
+  }
+  if (!items.length) return null
   try {
-    return JSON.parse(s.slice(first, last + 1))
+    return JSON.parse(`{"exercises":[${items.join(',')}]}`)
   } catch {
     return null
   }
