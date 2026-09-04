@@ -532,11 +532,29 @@ m -= затухание за (сегодня − prev_day);  m = clamp(m, 0, 100
 
 ---
 
-## Этап 7. PWA
+## Этап 7. PWA ▶️
 
-- [ ] manifest, иконки, splash.
-- [ ] Полноценный service worker (оболочка + стратегия кэша API).
-- [ ] Установка на iPhone, проверка standalone-режима.
+- [x] **Манифест + иконки.** `web/public/manifest.webmanifest` (name/short_name
+      `lexicon`, `display: standalone`, `background_color`/`theme_color`
+      `#111310`, иконки 192/512 с `purpose: "any maskable"`). Иконка —
+      самоцвет в hero-градиенте на тёмном фоне (SVG нарисован вручную,
+      растеризован через `qlmanage` + `sips` в 512/192/180/32; `favicon.svg`
+      для современных браузеров + `favicon-32.png` фолбэк). `apple-touch-icon`
+      180×180. В `index.html`: `<link rel="manifest">`, favicon-ссылки,
+      `apple-mobile-web-app-*` мета (статус-бар `black` — подходит тёмной
+      теме, без доп. safe-area-inset-top).
+      **Splash на iOS — без кастомных `apple-touch-startup-image`** (нужны
+      точные PNG под каждый размер экрана iPhone, ради личного приложения не
+      делаем): iOS сама рисует заглушку из иконки + `background_color`.
+- [x] **Service worker — оболочка.** `web/public/sw.js`: навигации —
+      network-first с фолбэком на закэшированную оболочку (для флаки-сети,
+      не полный офлайн); статика (JS/CSS/иконки) — stale-while-revalidate.
+      **`/api/*` сознательно не кэшируется** — свежесть данных важнее, а
+      полноценное офлайн-прохождение (предзагрузка на день, синк по
+      возвращении сети) остаётся отдельной задачей этапа 8. Регистрация
+      только в проде (`main.ts`, не мешает HMR в деве). Смоук: `wrangler
+      pages dev` — манифест/sw/иконки отдаются с верными `content-type`.
+- [ ] Установка на iPhone, проверка standalone-режима — на тебе после деплоя.
 
 ---
 

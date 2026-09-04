@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d9b3"/>
+      <stop offset="1" stop-color="#12b090"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="46%" r="42%">
+      <stop offset="0" stop-color="#22d9b3" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#22d9b3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#111310"/>
+  <circle cx="256" cy="256" r="210" fill="url(#glow)"/>
+
+  <!-- гем: table + два боковых фасета -->
+  <path d="M206,176 L306,176 L256,368 Z" fill="url(#g1)"/>
+  <path d="M206,176 L306,176 L256,368 Z" fill="#fff" opacity="0.22"/>
+  <path d="M146,232 L206,176 L256,368 Z" fill="url(#g1)"/>
+  <path d="M146,232 L206,176 L256,368 Z" fill="#000" opacity="0.24"/>
+  <path d="M306,176 L366,232 L256,368 Z" fill="url(#g1)"/>
+
+  <!-- контур/грани -->
+  <path
+    d="M206,176 L306,176 L366,232 L256,368 L146,232 Z"
+    fill="none"
+    stroke="#04231d"
+    stroke-width="5"
+    stroke-linejoin="round"
+    opacity="0.55"
+  />
+  <path d="M206,176 L256,368 M306,176 L256,368" stroke="#04231d" stroke-width="4" opacity="0.4" stroke-linecap="round"/>
+
+  <!-- блик -->
+  <line x1="230" y1="192" x2="204" y2="226" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- искры: 4-лучевая звезда = вертикальный + горизонтальный «змей»
+       (центры на дистанции ~150 от центра холста — внутри safe zone maskable) -->
+  <g fill="#ffc23d" opacity="0.92">
+    <polygon points="372,144 376.4,164 372,184 367.6,164"/>
+    <polygon points="352,164 372,159.6 392,164 372,168.4"/>
+  </g>
+  <g fill="#8fa8ff" opacity="0.88">
+    <polygon points="140,330 143.6,348 140,366 136.4,348"/>
+    <polygon points="122,348 140,344.4 158,348 140,351.6"/>
+  </g>
+</svg>
