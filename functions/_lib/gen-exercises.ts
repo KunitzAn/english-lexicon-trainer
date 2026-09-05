@@ -24,6 +24,9 @@ export interface GlossItem {
   example: string | null
 }
 
+/** Переводы слов предложения (кроме целевого) — чтобы тап по слову не бил в MyMemory. */
+export type WordGloss = Record<string, string>
+
 export interface GapPayload {
   kind: 'gap'
   word_sense_id: number
@@ -31,6 +34,7 @@ export interface GapPayload {
   bank: string[]
   answer: string
   glossary: GlossItem[]
+  gloss?: WordGloss
 }
 export interface ClickablePayload {
   kind: 'clickable'
@@ -40,6 +44,7 @@ export interface ClickablePayload {
   options: string[]
   answer: string
   glossary: GlossItem[]
+  gloss?: WordGloss
 }
 export type ExercisePayload = GapPayload | ClickablePayload
 
@@ -85,6 +90,12 @@ export function buildPrompt(senses: SenseForGen[]): {
     ' "options":[4 Russian glosses incl. answer; distractors are plausible Russian words clearly wrong for this sense]}.',
     '',
     'No translations inside the English text. No lists. Keep it idiomatic, not contrived.',
+    '',
+    'Also add "gloss" to EVERY exercise: a JSON object of short Russian translations for the',
+    'less common words in "text" that a C1 learner might not know. Skip articles, pronouns,',
+    'prepositions, conjunctions and very basic verbs (be/have/do/go/make). Keys = the exact',
+    'lowercase English word as it appears in "text"; values = a 1–3 word Russian gloss. At most',
+    '8 entries. For "clickable", do NOT put the target word in "gloss".',
   ].join('\n')
 
   const user =
@@ -123,6 +134,23 @@ function cleanList(v: unknown, max: number): string[] | null {
 
 const wordRe = (w: string) =>
   new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+
+/** Санитайз "gloss" от ИИ: {english: русский}, до 12 пар, без мусора. Не повод для отбраковки. */
+function cleanWordGloss(v: unknown): WordGloss | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const out: WordGloss = {}
+  let n = 0
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (n >= 12) break
+    const key = k.trim().toLowerCase()
+    const value = typeof val === 'string' ? val.trim() : ''
+    if (!key || !value || key.length > 40 || value.length > 60) continue
+    if (!/^[a-z][a-z'’\- ]*$/.test(key)) continue
+    out[key] = value
+    n++
+  }
+  return Object.keys(out).length ? out : undefined
+}
 
 export interface ValidateResult {
   valid: ValidExercise[]
@@ -198,6 +226,7 @@ export function validateBatch(
           bank,
           answer: inBank,
           glossary: [g],
+          gloss: cleanWordGloss(e.gloss),
         },
       })
     } else if (e.kind === 'clickable') {
@@ -217,6 +246,8 @@ export function validateBatch(
           `${tag}: перевод из БД "${sense.translation}" не среди options ${JSON.stringify(options)}`,
         )
       used.add(senseId)
+      const cg = cleanWordGloss(e.gloss)
+      if (cg) delete cg[target.toLowerCase()]
       out.push({
         type: 'clickable',
         word_sense_id: senseId,
@@ -228,6 +259,7 @@ export function validateBatch(
           options: opts,
           answer: sense.translation,
           glossary: [g],
+          gloss: cg && Object.keys(cg).length ? cg : undefined,
         },
       })
     } else {

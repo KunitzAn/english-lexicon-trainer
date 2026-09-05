@@ -2,9 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '@/api'
 import { lookupWord, type WordLookup } from '@/lib/wordLookup'
-import type { FolderRow } from '@/lib/types'
+import type { FolderRow, WordGloss } from '@/lib/types'
 
-const props = defineProps<{ text: string }>()
+const props = defineProps<{ text: string; gloss?: WordGloss }>()
 
 /** Список тем — один запрос на вкладку, лениво при первом открытии всплывашки. */
 let foldersPromise: Promise<FolderRow[]> | null = null
@@ -70,8 +70,6 @@ async function tap(ev: MouseEvent, word: string) {
     below: r.bottom,
     above: r.top,
   }
-  loading.value = true
-  result.value = null
   addState.value = {}
   customOpen.value = false
   customText.value = ''
@@ -83,15 +81,48 @@ async function tap(ev: MouseEvent, word: string) {
     folders.value = f
     nextTick(() => place())
   })
+
+  // перевод из упражнения (сгенерирован вместе с ним) — показываем сразу, без запроса
+  const fromGloss = props.gloss?.[word.trim().toLowerCase()]?.trim() || null
+  if (fromGloss) {
+    result.value = {
+      variants: [{ translation: fromGloss, source: 'api' }],
+      ok: true,
+      detail: 'из упражнения',
+      inVocabulary: false,
+    }
+    loading.value = false
+  } else {
+    result.value = null
+    loading.value = true
+  }
   await nextTick()
   place()
-  const res = await lookupWord(word)
-  if (active.value?.word === word) {
+
+  const res = await lookupWord(word, fromGloss ? { noRemote: true } : undefined)
+  if (active.value?.word !== word) return
+  if (fromGloss) {
+    const seen = new Set([fromGloss.toLowerCase()])
+    const merged = [{ translation: fromGloss, source: 'api' as const }]
+    for (const v of res.variants) {
+      const k = v.translation.trim().toLowerCase()
+      if (!seen.has(k)) {
+        seen.add(k)
+        merged.push(v)
+      }
+    }
+    result.value = {
+      variants: merged,
+      ok: true,
+      detail: res.detail,
+      inVocabulary: res.inVocabulary,
+    }
+  } else {
     result.value = res
-    loading.value = false
-    await nextTick()
-    place()
   }
+  loading.value = false
+  await nextTick()
+  place()
 }
 
 function close() {
@@ -199,9 +230,7 @@ const addLabel: Record<AddState, string> = {
 
         <select v-if="folders.length" v-model="selectedFolder" class="tt-folder">
           <option value="">без темы</option>
-          <option v-for="f in folders" :key="f.id" :value="f.id">
-            {{ f.icon ? f.icon + ' ' : '' }}{{ f.name }}
-          </option>
+          <option v-for="f in folders" :key="f.id" :value="f.id">{{ f.name }}</option>
         </select>
 
         <p v-if="loading" class="tt-muted">ищем…</p>

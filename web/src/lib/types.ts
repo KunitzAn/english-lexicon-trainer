@@ -116,6 +116,9 @@ export interface GlossItem {
   example: string | null
 }
 
+/** Переводы слов предложения (кроме целевого) — из генерации, чтобы тап не бил в MyMemory. */
+export type WordGloss = Record<string, string>
+
 export interface GapPayload {
   kind: 'gap'
   word_sense_id: number
@@ -123,6 +126,7 @@ export interface GapPayload {
   bank: string[]
   answer: string
   glossary: GlossItem[]
+  gloss?: WordGloss
 }
 export interface ClickablePayload {
   kind: 'clickable'
@@ -132,6 +136,7 @@ export interface ClickablePayload {
   options: string[]
   answer: string
   glossary: GlossItem[]
+  gloss?: WordGloss
 }
 
 export interface ServerExercise {

@@ -4,6 +4,7 @@ import type {
   TrainingCard,
   TrainingFormat,
   TrainingSet,
+  WordGloss,
 } from './types'
 
 export interface MatchExercise {
@@ -28,6 +29,7 @@ export interface GapExercise {
   text: string
   bank: string[]
   answer: string
+  wordGloss?: WordGloss
 }
 export interface ClickableExercise {
   kind: 'clickable'
@@ -37,6 +39,7 @@ export interface ClickableExercise {
   target: string
   options: string[]
   answer: string
+  wordGloss?: WordGloss
 }
 export type Exercise =
   | MatchExercise
@@ -124,6 +127,7 @@ function toContextExercise(se: ServerExercise, enPool: string[]): Exercise | nul
       text: p.text,
       bank: gapBank(p.answer, p.text, enPool, p.bank ?? []),
       answer: p.answer,
+      wordGloss: p.gloss,
     }
   }
   return {
@@ -134,6 +138,7 @@ function toContextExercise(se: ServerExercise, enPool: string[]): Exercise | nul
     target: p.target,
     options: p.options,
     answer: p.answer,
+    wordGloss: p.gloss,
   }
 }
 

@@ -7,6 +7,7 @@ import { clearServerSession, fetchServerSession } from '@/lib/session'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
 import Sparkles from '@/components/Sparkles.vue'
 import MasteryBar from '@/components/MasteryBar.vue'
+import FolderIcon from '@/components/FolderIcon.vue'
 import type { StatsInfo } from '@/lib/types'
 
 const router = useRouter()
@@ -188,7 +189,7 @@ const bucketBar = computed(() => {
           <li v-for="t in stats.themes" :key="t.id" @click="router.push(`/folders/${t.id}`)">
             <div class="t-head">
               <span class="t-title">
-                <span v-if="t.icon" class="t-icon">{{ t.icon }}</span>
+                <FolderIcon v-if="t.icon" :icon="t.icon" :color="t.color" bare :size="17" />
                 <span class="t-name disp">{{ t.name }}</span>
               </span>
               <span class="t-meta mono">{{ t.mastery }}%</span>
@@ -416,9 +417,8 @@ const bucketBar = computed(() => {
   gap: 0.4rem;
   min-width: 0;
 }
-.t-icon {
+.t-title :deep(.fi) {
   flex: none;
-  font-size: 0.95rem;
 }
 .t-name {
   min-width: 0;

@@ -386,11 +386,11 @@ const pad = (n: number) => String(n).padStart(2, '0')
         </template>
         <template v-else-if="current.kind === 'gap'">
           <p class="label hint-line">вставьте слово</p>
-          <p class="sent"><TappableText :text="gapParts[0] || ''" /><span class="blank mono">?</span><TappableText :text="gapParts[1] || ''" /></p>
+          <p class="sent"><TappableText :text="gapParts[0] || ''" :gloss="current.wordGloss" /><span class="blank mono">?</span><TappableText :text="gapParts[1] || ''" :gloss="current.wordGloss" /></p>
         </template>
         <template v-else-if="current.kind === 'clickable' && clickParts">
           <p class="label hint-line">что значит выделенное слово?</p>
-          <p class="sent"><TappableText :text="clickParts.pre" /><b class="hit mono">{{ clickParts.hit }}</b><TappableText :text="clickParts.post" /></p>
+          <p class="sent"><TappableText :text="clickParts.pre" :gloss="current.wordGloss" /><b class="hit mono">{{ clickParts.hit }}</b><TappableText :text="clickParts.post" :gloss="current.wordGloss" /></p>
         </template>
 
         <div class="opts">

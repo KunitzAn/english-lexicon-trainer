@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ACCENTS, FOLDER_EMOJI } from '@/lib/palette'
+import { ACCENTS } from '@/lib/palette'
+import { FOLDER_ICON_KEYS, FOLDER_ICON_SVG } from '@/lib/folderIcons'
+import FolderIcon from '@/components/FolderIcon.vue'
 
 const props = defineProps<{ icon: string | null; color: string | null }>()
 const emit = defineEmits<{
@@ -10,7 +12,6 @@ const emit = defineEmits<{
 const open = ref(false)
 const draftIcon = ref<string | null>(null)
 const draftColor = ref<string | null>(null)
-const customText = ref('')
 
 const btnEl = ref<HTMLElement | null>(null)
 const popEl = ref<HTMLElement | null>(null)
@@ -34,22 +35,16 @@ function place() {
 async function openPanel() {
   draftIcon.value = props.icon
   draftColor.value = props.color
-  customText.value = ''
   open.value = true
   await nextTick()
   place()
 }
 
-function pick(e: string) {
-  draftIcon.value = e
+function pick(k: string) {
+  draftIcon.value = k
 }
 function pickColor(c: string | null) {
   draftColor.value = c
-}
-function applyCustom() {
-  const s = customText.value.trim()
-  if (s) draftIcon.value = s
-  customText.value = ''
 }
 function clearAll() {
   draftIcon.value = null
@@ -72,16 +67,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <span class="ip">
-    <button
-      ref="btnEl"
-      type="button"
-      class="ip-swatch"
-      :style="{ '--sw-color': color ?? 'var(--raise)' }"
-      aria-label="иконка темы"
-      @click="openPanel"
-    >
-      <span v-if="icon">{{ icon }}</span>
-      <span v-else class="ip-empty">+</span>
+    <button ref="btnEl" type="button" class="ip-trigger" aria-label="иконка темы" @click="openPanel">
+      <FolderIcon :icon="icon" :color="color" :size="34" />
     </button>
 
     <teleport to="body">
@@ -92,23 +79,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <button type="button" class="ip-x" aria-label="закрыть" @click="close(true)">×</button>
           </div>
 
-          <div class="ip-grid">
+          <div class="ip-grid" :style="{ '--ic': draftColor || 'var(--fg-dim)' }">
             <button
-              v-for="e in FOLDER_EMOJI"
-              :key="e"
+              v-for="k in FOLDER_ICON_KEYS"
+              :key="k"
               type="button"
-              class="ip-emoji"
-              :class="{ sel: e === draftIcon }"
-              @click="pick(e)"
+              class="ip-ic"
+              :class="{ sel: k === draftIcon }"
+              @click="pick(k)"
             >
-              {{ e }}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                v-html="FOLDER_ICON_SVG[k]"
+              />
             </button>
           </div>
-
-          <form class="ip-custom" @submit.prevent="applyCustom">
-            <input v-model="customText" class="ip-input" placeholder="свой эмодзи" maxlength="8" />
-            <button type="submit" class="ip-apply" :disabled="!customText.trim()">ок</button>
-          </form>
 
           <div class="ip-colors">
             <button
@@ -121,6 +111,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               :aria-label="`цвет ${c}`"
               @click="pickColor(c)"
             />
+            <label class="ip-dot ip-custom" :class="{ sel: draftColor != null && !ACCENTS.includes(draftColor) }">
+              <span class="ip-custom-swatch" :style="{ background: draftColor && !ACCENTS.includes(draftColor) ? draftColor : 'conic-gradient(from 0deg, #ff6ba6, #ffc23d, #b6f04a, #22d9b3, #8fa8ff, #c98bff, #ff6ba6)' }" />
+              <input
+                type="color"
+                :value="draftColor && /^#[0-9a-f]{6}$/i.test(draftColor) ? draftColor : '#8fa8ff'"
+                @input="pickColor(($event.target as HTMLInputElement).value)"
+              />
+            </label>
             <button
               type="button"
               class="ip-dot ip-none"
@@ -143,25 +141,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .ip {
   display: inline-flex;
 }
-.ip-swatch {
+.ip-trigger {
   all: unset;
   cursor: pointer;
-  flex: none;
-  width: 2.3rem;
-  height: 2.3rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  line-height: 1;
-  background: color-mix(in srgb, var(--sw-color) 30%, var(--card-2));
-  border: 1px solid color-mix(in srgb, var(--sw-color) 55%, transparent);
-}
-.ip-empty {
-  color: var(--faint);
-  font-weight: 800;
-  font-size: 1rem;
+  display: inline-flex;
 }
 
 .ip-backdrop {
@@ -200,38 +183,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 0.2rem;
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.6rem;
+  max-height: 13rem;
+  overflow-y: auto;
 }
-.ip-emoji {
+.ip-ic {
   all: unset;
   cursor: pointer;
-  text-align: center;
-  font-size: 1.15rem;
-  line-height: 1;
-  padding: 0.4rem 0;
-  border-radius: var(--r-xs);
-}
-.ip-emoji.sel {
-  background: var(--raise);
-  outline: 2px solid var(--hero-a);
-  outline-offset: -2px;
-}
-
-.ip-custom {
   display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.6rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.42rem 0;
+  border-radius: var(--r-xs);
+  color: var(--ic);
 }
-.ip-input {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.85rem;
-  padding: 0.4rem 0.55rem;
+.ip-ic svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
 }
-.ip-apply {
-  flex: none;
-  font-size: 0.78rem;
-  padding: 0.4rem 0.7rem;
+.ip-ic.sel {
+  background: var(--raise);
+  outline: 2px solid var(--ic);
+  outline-offset: -2px;
 }
 
 .ip-colors {
@@ -239,6 +213,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.6rem;
+  flex-wrap: wrap;
 }
 .ip-dot {
   all: unset;
@@ -248,10 +223,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   height: 1.6rem;
   border-radius: 50%;
   flex: none;
+  position: relative;
+  overflow: hidden;
 }
 .ip-dot.sel {
   outline: 2px solid var(--fg);
   outline-offset: 2px;
+}
+.ip-custom {
+  display: inline-flex;
+}
+.ip-custom-swatch {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.ip-custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  cursor: pointer;
 }
 .ip-none {
   background: var(--card-2);

@@ -20,7 +20,10 @@ const key = (q: string) => q.trim().toLowerCase()
  * Та же цепочка, что в `AddWordView`, но без состояния формы — для всплывашки
  * «тап по слову в упражнении».
  */
-export async function lookupWord(raw: string): Promise<WordLookup> {
+export async function lookupWord(
+  raw: string,
+  opts?: { noRemote?: boolean },
+): Promise<WordLookup> {
   const q = key(raw)
   if (!q) return { variants: [], ok: false, detail: 'пусто', inVocabulary: false }
 
@@ -35,6 +38,9 @@ export async function lookupWord(raw: string): Promise<WordLookup> {
     const inVocabulary = !!cache.in_vocabulary
     if (cache.cached && cache.variants.length) {
       result = { variants: cache.variants, ok: true, detail: 'из кэша', inVocabulary }
+    } else if (opts?.noRemote) {
+      // перевод уже пришёл из упражнения — MyMemory не дёргаем, нужен только флаг «в словаре»
+      return { variants: cache.variants ?? [], ok: false, detail: 'локально', inVocabulary }
     } else {
       const mm = await fetchMyMemory(q)
       result = { variants: mm.variants, ok: mm.ok, detail: mm.detail, inVocabulary }
