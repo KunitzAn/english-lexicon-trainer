@@ -18,22 +18,27 @@ export const session = reactive<{
   set: TrainingSet | null
   context: ServerExercise[]
   format: TrainingFormat
-}>({ set: null, context: [], format: 'mix' })
+  /** Сообщение о сбое генерации ИИ-упражнений — показать один раз в начале сессии. */
+  genWarning: string | null
+}>({ set: null, context: [], format: 'mix', genWarning: null })
 
 export function startSession(
   set: TrainingSet,
   context: ServerExercise[] = [],
   format: TrainingFormat = 'mix',
+  genWarning: string | null = null,
 ) {
   session.set = set
   session.context = context
   session.format = format
+  session.genWarning = genWarning
 }
 
 export function endSession() {
   session.set = null
   session.context = []
   session.format = 'mix'
+  session.genWarning = null
 }
 
 // --- серверное сохранение прогресса сессии (этап 5) ---

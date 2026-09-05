@@ -6,6 +6,8 @@ export interface WordLookup {
   variants: LookupVariant[]
   ok: boolean
   detail: string
+  /** Слово уже есть в личном словаре (по text_norm) — независимо от найденных переводов. */
+  inVocabulary: boolean
 }
 
 /** Мемоизация на время жизни вкладки — одно и то же слово не дёргаем дважды. */
@@ -20,7 +22,7 @@ const key = (q: string) => q.trim().toLowerCase()
  */
 export async function lookupWord(raw: string): Promise<WordLookup> {
   const q = key(raw)
-  if (!q) return { variants: [], ok: false, detail: 'пусто' }
+  if (!q) return { variants: [], ok: false, detail: 'пусто', inVocabulary: false }
 
   const cached = memo.get(q)
   if (cached) return cached
@@ -30,11 +32,12 @@ export async function lookupWord(raw: string): Promise<WordLookup> {
     const cache = await api<LookupResult>(
       `/words/lookup?q=${encodeURIComponent(q)}`,
     )
+    const inVocabulary = !!cache.in_vocabulary
     if (cache.cached && cache.variants.length) {
-      result = { variants: cache.variants, ok: true, detail: 'из кэша' }
+      result = { variants: cache.variants, ok: true, detail: 'из кэша', inVocabulary }
     } else {
       const mm = await fetchMyMemory(q)
-      result = { variants: mm.variants, ok: mm.ok, detail: mm.detail }
+      result = { variants: mm.variants, ok: mm.ok, detail: mm.detail, inVocabulary }
       if (mm.ok) {
         api('/words/lookup', {
           method: 'POST',
@@ -47,6 +50,7 @@ export async function lookupWord(raw: string): Promise<WordLookup> {
       variants: [],
       ok: false,
       detail: e instanceof Error ? e.message : String(e),
+      inVocabulary: false,
     }
   }
 

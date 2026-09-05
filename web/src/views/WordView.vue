@@ -21,6 +21,10 @@ const editTranscription = ref('')
 const showNewSense = ref(false)
 const newSense = reactive({ translation: '', definition_en: '', example: '' })
 
+const saving = ref(false)
+const saved = ref(false)
+let savedTimer: ReturnType<typeof setTimeout> | null = null
+
 async function load() {
   loading.value = true
   try {
@@ -47,29 +51,34 @@ async function load() {
   }
 }
 
+/** Единая кнопка сохранения: слово (текст/транскрипция) + темы — один клик. */
 async function saveWord() {
+  saving.value = true
+  saved.value = false
+  error.value = null
   try {
-    await api(`/words/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        text: editText.value,
-        transcription: editTranscription.value.trim() || null,
+    await Promise.all([
+      api(`/words/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          text: editText.value,
+          transcription: editTranscription.value.trim() || null,
+        }),
       }),
-    })
-    await load()
+      api(`/words/${id}/folders`, {
+        method: 'PUT',
+        body: JSON.stringify({ folder_ids: [...selectedFolders] }),
+      }),
+    ])
+    saved.value = true
+    if (savedTimer) clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => {
+      saved.value = false
+    }, 1800)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
-  }
-}
-
-async function saveFolders() {
-  try {
-    await api(`/words/${id}/folders`, {
-      method: 'PUT',
-      body: JSON.stringify({ folder_ids: [...selectedFolders] }),
-    })
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -142,7 +151,6 @@ onMounted(load)
           <span class="label">выученность</span>
           <MasteryBar :value="word.mastery ?? 0" />
         </div>
-        <button @click="saveWord">сохранить слово</button>
       </section>
 
       <section class="card">
@@ -189,8 +197,13 @@ onMounted(load)
           {{ f.name }}
         </label>
         <p v-if="!folders.length" class="muted">тем нет</p>
-        <button @click="saveFolders">сохранить темы</button>
       </section>
+
+      <div class="frame save-frame">
+        <button class="primary wide" :disabled="saving" @click="saveWord">
+          {{ saved ? 'сохранено ✓' : saving ? 'сохраняю…' : 'сохранить слово' }}
+        </button>
+      </div>
 
       <div class="row-btns">
         <button @click="router.push('/words/add')">+ новое слово</button>
@@ -203,6 +216,13 @@ onMounted(load)
 <style scoped>
 .back {
   margin: 0 0 0.75rem;
+}
+.save-frame {
+  margin-top: 0.5rem;
+}
+.wide {
+  width: 100%;
+  padding: 0.9rem;
 }
 .row-btns {
   display: flex;

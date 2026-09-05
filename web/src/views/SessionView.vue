@@ -37,6 +37,7 @@ const pending = ref<PersistedSession | null>(null)
 
 const attempts = ref<AttemptDraft[]>([])
 const review = ref<SessionReviewRow[]>([])
+const genWarning = ref<string | null>(null)
 
 const saving = ref(false)
 const saveError = ref<string | null>(null)
@@ -86,6 +87,7 @@ onMounted(async () => {
       router.replace({ name: 'train' })
       return
     }
+    genWarning.value = session.genWarning
     phase.value = 'run'
     persist()
     return
@@ -354,6 +356,11 @@ const pad = (n: number) => String(n).padStart(2, '0')
       </div>
       <div class="track"><i :style="{ width: (idx / total) * 100 + '%' }" /></div>
 
+      <p v-if="genWarning" class="gen-warn muted small">
+        {{ genWarning }}
+        <button class="link" @click="genWarning = null">скрыть</button>
+      </p>
+
       <!-- flashcard -->
       <section v-if="current.kind === 'flashcard'" class="ex">
         <p class="q disp">{{ current.card.text }}</p>
@@ -576,6 +583,20 @@ const pad = (n: number) => String(n).padStart(2, '0')
   background: linear-gradient(90deg, var(--hero-a), #6a8cff);
   box-shadow: 0 0 12px rgba(34, 217, 179, 0.5);
   transition: width 0.2s;
+}
+
+.gen-warn {
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 0.55rem 0.75rem;
+  margin: 0 0 1rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.gen-warn .link {
+  flex: none;
 }
 
 .ex {

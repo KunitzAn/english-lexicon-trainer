@@ -2,8 +2,20 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '@/api'
 import { lookupWord, type WordLookup } from '@/lib/wordLookup'
+import type { FolderRow } from '@/lib/types'
 
 const props = defineProps<{ text: string }>()
+
+/** Список тем — один запрос на вкладку, лениво при первом открытии всплывашки. */
+let foldersPromise: Promise<FolderRow[]> | null = null
+function loadFolders(): Promise<FolderRow[]> {
+  if (!foldersPromise) {
+    foldersPromise = api<{ folders: FolderRow[] }>('/folders')
+      .then((r) => r.folders)
+      .catch(() => [])
+  }
+  return foldersPromise
+}
 
 /** Разбиваем на слова (латиница + внутр. апострофы/дефисы) и разделители. */
 const tokens = computed(() => {
@@ -26,6 +38,9 @@ const customText = ref('')
 const customBusy = ref(false)
 const customError = ref<string | null>(null)
 const customAdded = ref<string[]>([])
+
+const folders = ref<FolderRow[]>([])
+const selectedFolder = ref('')
 
 const popEl = ref<HTMLElement | null>(null)
 const popStyle = ref<Record<string, string>>({})
@@ -63,6 +78,11 @@ async function tap(ev: MouseEvent, word: string) {
   customBusy.value = false
   customError.value = null
   customAdded.value = []
+  selectedFolder.value = ''
+  loadFolders().then((f) => {
+    folders.value = f
+    nextTick(() => place())
+  })
   await nextTick()
   place()
   const res = await lookupWord(word)
@@ -80,6 +100,11 @@ function close() {
   loading.value = false
 }
 
+function folderIds(): number[] {
+  const fid = Number(selectedFolder.value)
+  return fid ? [fid] : []
+}
+
 async function add(translation: string) {
   const a = active.value
   if (!a) return
@@ -90,13 +115,14 @@ async function add(translation: string) {
       body: JSON.stringify({
         text: a.word,
         senses: [{ translation, source: 'api' }],
-        folder_ids: [],
+        folder_ids: folderIds(),
       }),
     })
     addState.value = {
       ...addState.value,
       [translation]: r.added_senses > 0 ? 'added' : 'exists',
     }
+    if (result.value) result.value = { ...result.value, inVocabulary: true }
   } catch {
     addState.value = { ...addState.value, [translation]: 'error' }
   }
@@ -122,11 +148,12 @@ async function addCustom() {
       body: JSON.stringify({
         text: a.word,
         senses: [{ translation: t, source: 'manual' }],
-        folder_ids: [],
+        folder_ids: folderIds(),
       }),
     })
     customAdded.value = [...customAdded.value, t]
     customText.value = ''
+    if (result.value) result.value = { ...result.value, inVocabulary: true }
   } catch (e) {
     customError.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -168,6 +195,14 @@ const addLabel: Record<AddState, string> = {
           <span class="tt-word mono">{{ active.word.toLowerCase() }}</span>
           <button type="button" class="tt-x" aria-label="закрыть" @click="close">×</button>
         </div>
+        <p v-if="result?.inVocabulary" class="tt-in-vocab">уже в словаре</p>
+
+        <select v-if="folders.length" v-model="selectedFolder" class="tt-folder">
+          <option value="">без темы</option>
+          <option v-for="f in folders" :key="f.id" :value="f.id">
+            {{ f.icon ? f.icon + ' ' : '' }}{{ f.name }}
+          </option>
+        </select>
 
         <p v-if="loading" class="tt-muted">ищем…</p>
 
@@ -268,6 +303,17 @@ const addLabel: Record<AddState, string> = {
   color: var(--muted);
   font-size: 0.85rem;
   margin: 0.15rem 0 0;
+}
+.tt-in-vocab {
+  color: var(--ok-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin: -0.25rem 0 0.5rem;
+}
+.tt-folder {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 0.5rem;
 }
 .tt-list {
   list-style: none;

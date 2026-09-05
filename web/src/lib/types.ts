@@ -52,6 +52,8 @@ export interface LookupResult {
   degraded?: boolean
   detail?: string
   variants: LookupVariant[]
+  /** Слово уже есть в личном словаре пользователя (по text_norm). */
+  in_vocabulary?: boolean
 }
 
 /** Черновик значения в форме добавления. */

@@ -20,6 +20,9 @@ const manual = ref<SenseDraft[]>([])
 const error = ref<string | null>(null)
 const saving = ref(false)
 
+const newFolderName = ref('')
+const creatingFolder = ref(false)
+
 onMounted(async () => {
   const res = await api<{ folders: FolderRow[] }>('/folders')
   folders.value = res.folders
@@ -85,6 +88,25 @@ function toggleVariant(t: string) {
 function toggleFolder(id: number) {
   if (selectedFolders.has(id)) selectedFolders.delete(id)
   else selectedFolders.add(id)
+}
+
+async function createFolder() {
+  const name = newFolderName.value.trim()
+  if (!name) return
+  creatingFolder.value = true
+  try {
+    const res = await api<{ folder: FolderRow }>('/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+    folders.value.push(res.folder)
+    selectedFolders.add(res.folder.id)
+    newFolderName.value = ''
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    creatingFolder.value = false
+  }
 }
 
 function buildSenses() {
@@ -198,6 +220,13 @@ async function save() {
         {{ f.name }}
       </label>
       <p v-if="!folders.length" class="muted">тем пока нет — можно сохранить без темы</p>
+
+      <form class="new-folder" @submit.prevent="createFolder">
+        <input v-model="newFolderName" placeholder="новая тема…" />
+        <button type="submit" :disabled="creatingFolder || !newFolderName.trim()">
+          ＋
+        </button>
+      </form>
     </section>
 
     <p v-if="error" class="err">{{ error }}</p>
@@ -213,5 +242,19 @@ async function save() {
   display: grid;
   gap: 0.25rem;
   margin-bottom: 0.75rem;
+}
+.new-folder {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.new-folder input {
+  border-style: dashed;
+  background: var(--card-2);
+}
+.new-folder button {
+  flex: none;
+  padding: 0 1.1rem;
+  font-size: 1.1rem;
 }
 </style>

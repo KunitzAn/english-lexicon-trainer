@@ -82,6 +82,7 @@ async function start() {
     }
 
     let context: GenerateResult['exercises'] = []
+    let genWarning: string | null = null
     const wantContext = format.value !== 'cards' && quota.value?.enabled
     if (wantContext) {
       stage.value = 'готовлю упражнения в контексте…'
@@ -98,6 +99,12 @@ async function start() {
           console.warn(
             `[генерация упражнений] degraded=${gen.degraded}\n${gen.gen_detail ?? ''}`,
           )
+          // no_key/no_input — не сбой, а ожидаемое состояние (ИИ выключен / нечего генерировать)
+          if (gen.degraded === 'quota') {
+            genWarning = 'дневной лимит ИИ-упражнений исчерпан — сегодня без предложений в контексте'
+          } else if (gen.degraded === 'model_failed') {
+            genWarning = 'не удалось сгенерировать упражнения в контексте — идём без ИИ'
+          }
         } else {
           console.info(
             `[генерация упражнений] контекстных: ${gen.exercises.length}, квота осталась: ${gen.quota_left}`,
@@ -105,10 +112,11 @@ async function start() {
         }
       } catch (e) {
         console.warn('[генерация упражнений] запрос упал:', e)
+        genWarning = 'не удалось сгенерировать упражнения в контексте — идём без ИИ'
       }
     }
 
-    startSession(set, context, format.value)
+    startSession(set, context, format.value, genWarning)
     router.push({ name: 'train-run' })
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
