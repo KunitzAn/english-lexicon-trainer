@@ -17,6 +17,7 @@ import {
   normText,
   normTranslation,
 } from '../../_lib/normalize'
+import { cleanIpa } from './pronunciation'
 import { wordFolders, words, wordSenses } from '../../../db/schema'
 
 interface SenseInput {
@@ -122,12 +123,15 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
   const uid = ctx.data.userId
   const body = await readJson<{
     text?: unknown
+    transcription?: unknown
     folder_ids?: unknown
     senses?: unknown
   }>(ctx.request)
 
   const text = str(body?.text)
   if (!text) return error(400, 'text required')
+
+  const transcription = cleanIpa(body?.transcription)
 
   const rawSenses = Array.isArray(body?.senses)
     ? (body!.senses as SenseInput[])
@@ -173,6 +177,13 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
   if (existing[0]) {
     wordId = existing[0].id
     created = false
+    // не перетираем существующую транскрипцию, но пустую — заполняем
+    if (transcription && !existing[0].transcription) {
+      await db
+        .update(words)
+        .set({ transcription })
+        .where(eq(words.id, wordId))
+    }
   } else {
     const [inserted] = await db
       .insert(words)
@@ -180,6 +191,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         userId: uid,
         text: clean,
         textNorm: norm,
+        transcription,
         isPhrase: isPhrase(clean),
         source: 'manual',
       })

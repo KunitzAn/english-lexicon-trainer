@@ -3,12 +3,15 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import { fetchMyMemory } from '@/lib/mymemory'
+import { fetchPronunciation } from '@/lib/pronunciation'
 import type { FolderRow, LookupResult, LookupVariant, SenseDraft } from '@/lib/types'
 
 const route = useRoute()
 const router = useRouter()
 
 const text = ref('')
+const transcription = ref('')
+const ipaLoading = ref(false)
 const folders = ref<FolderRow[]>([])
 const selectedFolders = reactive<Set<number>>(new Set())
 
@@ -43,6 +46,19 @@ function degrade() {
 async function lookup() {
   const q = text.value.trim()
   if (!q) return
+
+  // транскрипция — параллельно, не блокирует перевод, не перетирает ручной ввод
+  if (!/\s/.test(q)) {
+    ipaLoading.value = true
+    fetchPronunciation(q)
+      .then((ipa) => {
+        if (ipa && !transcription.value.trim()) transcription.value = ipa
+      })
+      .finally(() => {
+        ipaLoading.value = false
+      })
+  }
+
   lookupState.value = 'loading'
   error.value = null
   try {
@@ -143,6 +159,7 @@ async function save() {
       method: 'POST',
       body: JSON.stringify({
         text: text.value,
+        transcription: transcription.value.trim() || null,
         folder_ids: [...selectedFolders],
         senses,
       }),
@@ -178,6 +195,14 @@ async function save() {
     <p v-if="lookupState === 'degraded'" class="muted">
       перевод недоступен — впишите вручную (подробности в консоли браузера)
     </p>
+
+    <label class="tr-field">
+      <span class="label">транскрипция</span>
+      <input
+        v-model="transcription"
+        :placeholder="ipaLoading ? 'подтягиваю…' : 'подтянется автоматически'"
+      />
+    </label>
 
     <section v-if="variants.length" class="card">
       <h2>Варианты перевода</h2>
@@ -237,6 +262,14 @@ async function save() {
 <style scoped>
 .back {
   margin: 0 0 0.75rem;
+}
+.tr-field {
+  display: block;
+  margin: 0.75rem 0;
+}
+.tr-field .label {
+  display: block;
+  margin-bottom: 0.3rem;
 }
 .sense-draft {
   display: grid;

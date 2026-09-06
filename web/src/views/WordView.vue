@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
+import { fetchPronunciation } from '@/lib/pronunciation'
 import MasteryBar from '@/components/MasteryBar.vue'
 import type { FolderRow, SenseRow, WordDetail } from '@/lib/types'
 
@@ -24,6 +25,18 @@ const newSense = reactive({ translation: '', definition_en: '', example: '' })
 const saving = ref(false)
 const saved = ref(false)
 let savedTimer: ReturnType<typeof setTimeout> | null = null
+
+const ipaBusy = ref(false)
+async function fetchIpa() {
+  if (ipaBusy.value || !editText.value.trim()) return
+  ipaBusy.value = true
+  try {
+    const ipa = await fetchPronunciation(editText.value)
+    if (ipa) editTranscription.value = ipa
+  } finally {
+    ipaBusy.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -145,7 +158,12 @@ onMounted(load)
       <section class="card">
         <h2>Слово</h2>
         <input v-model="editText" />
-        <input v-model="editTranscription" placeholder="транскрипция" />
+        <div class="tr-row">
+          <input v-model="editTranscription" placeholder="транскрипция" />
+          <button class="link" :disabled="ipaBusy" @click="fetchIpa">
+            {{ ipaBusy ? '…' : 'подтянуть' }}
+          </button>
+        </div>
         <p v-if="word.is_phrase" class="muted small">фраза</p>
         <div class="wmast">
           <span class="label">выученность</span>
@@ -216,6 +234,18 @@ onMounted(load)
 <style scoped>
 .back {
   margin: 0 0 0.75rem;
+}
+.tr-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tr-row input {
+  flex: 1;
+  min-width: 0;
+}
+.tr-row .link {
+  flex: none;
 }
 .save-frame {
   margin-top: 0.5rem;

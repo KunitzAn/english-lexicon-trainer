@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus'
+import { fetchPronunciation } from '@/lib/pronunciation'
 import { ACCENTS } from '@/lib/palette'
 import {
   nextSortMode,
@@ -30,6 +31,43 @@ const selected = reactive<Set<number>>(new Set())
 const bulkFolderId = ref<number | null>(null)
 const busy = ref(false)
 const notice = ref<string | null>(null)
+
+// дозаполнение транскрипций
+const missingIpa = computed(() =>
+  words.value.filter((w) => !w.transcription && !w.is_phrase),
+)
+const ipaFill = reactive({ running: false, done: 0, total: 0, ok: 0, cancel: false })
+
+async function fillTranscriptions() {
+  const targets = missingIpa.value.slice()
+  if (!targets.length || ipaFill.running) return
+  ipaFill.running = true
+  ipaFill.cancel = false
+  ipaFill.done = 0
+  ipaFill.ok = 0
+  ipaFill.total = targets.length
+  notice.value = null
+  for (const w of targets) {
+    if (ipaFill.cancel) break
+    try {
+      const ipa = await fetchPronunciation(w.text)
+      if (ipa) {
+        await api(`/words/${w.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ transcription: ipa }),
+        })
+        w.transcription = ipa
+        ipaFill.ok++
+      }
+    } catch {
+      /* пропускаем слово */
+    }
+    ipaFill.done++
+    await new Promise((r) => setTimeout(r, 220))
+  }
+  ipaFill.running = false
+  notice.value = `транскрипции: заполнено ${ipaFill.ok} из ${ipaFill.total}`
+}
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -132,6 +170,17 @@ useRefreshOnFocus(() => {
       <div v-if="words.length" class="sortbar">
         <button class="ghost" @click="cycleSort">⇅ {{ WORD_SORT_LABEL[sortMode] }}</button>
       </div>
+
+      <p v-if="ipaFill.running || missingIpa.length" class="ipabar muted small">
+        <template v-if="ipaFill.running">
+          подтягиваю транскрипции… {{ ipaFill.done }} / {{ ipaFill.total }}
+          <button class="link" @click="ipaFill.cancel = true">стоп</button>
+        </template>
+        <template v-else>
+          без транскрипции: {{ missingIpa.length }}
+          <button class="link" @click="fillTranscriptions">дозаполнить</button>
+        </template>
+      </p>
 
       <ul class="words">
         <li
@@ -271,5 +320,11 @@ useRefreshOnFocus(() => {
 }
 .sortbar button {
   font-size: 0.78rem;
+}
+.ipabar {
+  margin: 0.5rem 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
 }
 </style>

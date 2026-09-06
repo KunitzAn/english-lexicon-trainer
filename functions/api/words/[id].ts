@@ -3,6 +3,7 @@ import { getDb } from '../../_lib/db'
 import type { AuthedData } from '../../_lib/context'
 import type { Env } from '../../_lib/env'
 import { loadWord } from '../../_lib/guard'
+import { cleanIpa } from './pronunciation'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
 import {
@@ -80,7 +81,7 @@ export const onRequestPatch: PagesFunction<Env, string, AuthedData> = async (
 
   const patch: Partial<typeof words.$inferInsert> = {}
   if (body && 'transcription' in body) {
-    patch.transcription = str(body.transcription)
+    patch.transcription = cleanIpa(body.transcription)
   }
   if (body && 'text' in body) {
     const text = str(body.text)
