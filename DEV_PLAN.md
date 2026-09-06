@@ -669,9 +669,12 @@ m -= затухание за (сегодня − prev_day);  m = clamp(m, 0, 100
       180×180. В `index.html`: `<link rel="manifest">`, favicon-ссылки,
       `apple-mobile-web-app-*` мета (статус-бар `black` — подходит тёмной
       теме, без доп. safe-area-inset-top).
-      **Splash на iOS — без кастомных `apple-touch-startup-image`** (нужны
-      точные PNG под каждый размер экрана iPhone, ради личного приложения не
-      делаем): iOS сама рисует заглушку из иконки + `background_color`.
+      **Splash на iOS — кастомный** (после жалобы на белый экран при холодном
+      старте PWA): `scripts/gen-splash.mjs` генерит `web/public/splash/*.png`
+      — гем на фоне темы, портрет, 12 актуальных размеров iPhone × 2 схемы
+      (dark/light), центрирование через `sips --padToHeightWidth`. 24 тега
+      `<link rel="apple-touch-startup-image" media="…prefers-color-scheme…">`
+      в `index.html`. iOS сама рисовала только белый экран.
 - [x] **Service worker — оболочка.** `web/public/sw.js`: навигации —
       network-first с фолбэком на закэшированную оболочку (для флаки-сети,
       не полный офлайн); статика (JS/CSS/иконки) — stale-while-revalidate.
