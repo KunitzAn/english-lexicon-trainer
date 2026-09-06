@@ -734,7 +734,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
   font-weight: 800;
 }
 .chip.sel {
-  background: #17223a;
+  background: color-mix(in srgb, var(--sapphire-b) 22%, var(--card));
   color: var(--fg);
   outline: 2px solid var(--sapphire-b);
 }
@@ -764,7 +764,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
   margin: 0.4rem 0 0.75rem;
 }
 .score {
-  background: #17190f;
+  background: var(--card-2);
   padding: 0.75rem 1.1rem;
   display: flex;
   align-items: flex-end;

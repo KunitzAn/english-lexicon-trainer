@@ -233,8 +233,8 @@ useRefreshOnFocus(() => {
   flex: 1 1 auto;
   min-width: 10rem;
   padding: 0.4rem 0.5rem;
-  background: #0d0f13;
-  border: 1px solid #2a2e39;
+  background: var(--bg-deep);
+  border: 1px solid var(--raise);
   border-radius: 0.4rem;
   color: var(--fg);
   font: inherit;

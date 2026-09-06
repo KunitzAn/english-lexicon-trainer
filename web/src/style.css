@@ -60,7 +60,92 @@
   --grad-bad: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 44%),
     linear-gradient(160deg, var(--bad-a), var(--bad-b));
 
+  --shadow-pop: 0 12px 34px rgba(0, 0, 0, 0.55);
+
   color-scheme: dark;
+}
+
+/* ---- светлая тема: по системной настройке (как на iPhone) ---- */
+@media (prefers-color-scheme: light) {
+  :root {
+    /* база — тёплая бумага, не белый */
+    --bg: #efe9dc;
+    --bg-deep: #e3dcc9;
+    --card: #faf6ec;
+    --card-2: #f2ecdd;
+    --raise: #e2dac6;
+    --line: #ddd4bd;
+    --fg: #2b2820;
+    --fg-dim: #423d31;
+    --muted: #6c6553;
+    --faint: #938b74;
+
+    /* самоцветы — глубже, чтобы читались на светлом */
+    --hero-a: #14b892;
+    --hero-b: #0c9a78;
+    --hero-ink: #04231d;
+    --ok-a: #86c92a;
+    --ok-b: #5fa300;
+    --ok-ink: #14300a;
+    --ok-text: #4e7d0b;
+    --bad-a: #ff6ba6;
+    --bad-b: #e0357f;
+    --bad-ink: #40071e;
+    --bad-text: #d3397c;
+    --amber-a: #ffcf5a;
+    --amber-b: #e79600;
+    --amber: #cf8600;
+    --sapphire-a: #8fa8ff;
+    --sapphire-b: #4f68e6;
+    --amethyst-a: #c98bff;
+    --amethyst-b: #8b3fe0;
+    --link: #2f6fd0;
+    --link-hover: #1f57ad;
+    --err: #d3397c;
+
+    --grad-hero: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 44%),
+      linear-gradient(160deg, var(--hero-a), var(--hero-b));
+    --grad-ok: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 46%),
+      linear-gradient(160deg, var(--ok-a), var(--ok-b));
+    --grad-bad: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 46%),
+      linear-gradient(160deg, var(--bad-a), var(--bad-b));
+
+    --shadow-pop: 0 12px 30px rgba(64, 54, 32, 0.16);
+
+    color-scheme: light;
+  }
+
+  /* зерно — заметно тише на светлом */
+  body::after {
+    opacity: 0.032;
+  }
+
+  /* сверкающая рамка: тёмная база между самоцветами → тёплый светлый нейтрал */
+  .frame {
+    background: linear-gradient(
+      110deg,
+      #d9d0bb 16%,
+      #ffe9a8 32%,
+      #b6f04a 43%,
+      #22d9b3 54%,
+      #8fa8ff 65%,
+      #c98bff 76%,
+      #d9d0bb 88%
+    );
+    background-size: 260% 100%;
+  }
+  .frame-ok {
+    background: linear-gradient(
+      110deg,
+      #d9d0bb 12%,
+      #eaffb0 30%,
+      #b6f04a 44%,
+      #8ce23f 56%,
+      #eaffb0 70%,
+      #d9d0bb 88%
+    );
+    background-size: 240% 100%;
+  }
 }
 
 * {

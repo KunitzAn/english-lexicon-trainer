@@ -303,7 +303,7 @@ const addLabel: Record<AddState, string> = {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-pop);
   padding: 0.7rem 0.75rem 0.75rem;
   font-family: var(--font-ui);
 }

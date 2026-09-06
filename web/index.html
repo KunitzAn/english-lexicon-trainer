@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#111310" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111310" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#efe9dc" />
     <title>English Lexicon Trainer</title>
 
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -69,6 +70,16 @@
         .boot svg {
           animation: none;
           opacity: 1;
+        }
+      }
+      @media (prefers-color-scheme: light) {
+        html,
+        body,
+        .boot {
+          background: #efe9dc;
+        }
+        .boot span {
+          color: #938b74;
         }
       }
     </style>
