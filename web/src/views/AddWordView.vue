@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import { fetchMyMemory } from '@/lib/mymemory'
-import { fetchPronunciation } from '@/lib/pronunciation'
+import { generateTranscription, isTranscribing } from '@/lib/transcriptionTask'
 import type { FolderRow, LookupResult, LookupVariant, SenseDraft } from '@/lib/types'
 
 const route = useRoute()
@@ -11,8 +11,24 @@ const router = useRouter()
 
 const text = ref('')
 const transcription = ref('')
-const ipaLoading = ref(false)
+const ipaLoading = computed(() => isTranscribing(text.value))
 const folders = ref<FolderRow[]>([])
+
+/** Автостарт генерации транскрипции, когда ввели слово (с антидребезгом). */
+let ipaDebounce: ReturnType<typeof setTimeout> | undefined
+watch(text, (v) => {
+  clearTimeout(ipaDebounce)
+  const w = v.trim()
+  if (!w || /\s/.test(w)) return
+  ipaDebounce = setTimeout(() => {
+    generateTranscription(w, {
+      onResult: (ipa) => {
+        if (ipa && !transcription.value.trim()) transcription.value = ipa
+      },
+    })
+  }, 600)
+})
+onBeforeUnmount(() => clearTimeout(ipaDebounce))
 const selectedFolders = reactive<Set<number>>(new Set())
 
 const variants = ref<LookupVariant[]>([])
@@ -47,17 +63,12 @@ async function lookup() {
   const q = text.value.trim()
   if (!q) return
 
-  // транскрипция — параллельно, не блокирует перевод, не перетирает ручной ввод
-  if (!/\s/.test(q)) {
-    ipaLoading.value = true
-    fetchPronunciation(q)
-      .then((ipa) => {
-        if (ipa && !transcription.value.trim()) transcription.value = ipa
-      })
-      .finally(() => {
-        ipaLoading.value = false
-      })
-  }
+  // транскрипция — фоном, не блокирует перевод, не перетирает ручной ввод
+  generateTranscription(q, {
+    onResult: (ipa) => {
+      if (ipa && !transcription.value.trim()) transcription.value = ipa
+    },
+  })
 
   lookupState.value = 'loading'
   error.value = null
@@ -155,15 +166,22 @@ async function save() {
   saving.value = true
   error.value = null
   try {
-    await api<{ word_id: number; created: boolean; added_senses: number }>('/words', {
-      method: 'POST',
-      body: JSON.stringify({
-        text: text.value,
-        transcription: transcription.value.trim() || null,
-        folder_ids: [...selectedFolders],
-        senses,
-      }),
-    })
+    const res = await api<{ word_id: number; created: boolean; added_senses: number }>(
+      '/words',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          text: text.value,
+          transcription: transcription.value.trim() || null,
+          folder_ids: [...selectedFolders],
+          senses,
+        }),
+      },
+    )
+    // не успела сгенериться до сохранения — догенерим фоном и подтянем PATCH-ем
+    if (res.word_id && !transcription.value.trim() && !/\s/.test(text.value.trim())) {
+      generateTranscription(text.value, { wordId: res.word_id })
+    }
     // назад в список, откуда пришли: тема (если добавляли в неё) или все слова
     const fromFolder = Number(route.query.folder)
     router.push(
@@ -198,10 +216,13 @@ async function save() {
 
     <label class="tr-field">
       <span class="label">транскрипция</span>
-      <input
-        v-model="transcription"
-        :placeholder="ipaLoading ? 'подтягиваю…' : 'подтянется автоматически'"
-      />
+      <span class="tr-input">
+        <input
+          v-model="transcription"
+          :placeholder="ipaLoading ? 'генерится…' : 'сгенерится автоматически'"
+        />
+        <span v-if="ipaLoading" class="spinner" aria-label="генерится" />
+      </span>
     </label>
 
     <section v-if="variants.length" class="card">
@@ -270,6 +291,18 @@ async function save() {
 .tr-field .label {
   display: block;
   margin-bottom: 0.3rem;
+}
+.tr-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tr-input input {
+  flex: 1;
+  min-width: 0;
+}
+.tr-input .spinner {
+  flex: none;
 }
 .sense-draft {
   display: grid;

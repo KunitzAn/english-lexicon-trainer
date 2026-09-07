@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
-import { fetchPronunciation } from '@/lib/pronunciation'
+import { generateTranscription, isTranscribing } from '@/lib/transcriptionTask'
 import MasteryBar from '@/components/MasteryBar.vue'
 import type { FolderRow, SenseRow, WordDetail } from '@/lib/types'
 
@@ -26,23 +26,22 @@ const saving = ref(false)
 const saved = ref(false)
 let savedTimer: ReturnType<typeof setTimeout> | null = null
 
-const ipaBusy = ref(false)
+const ipaBusy = computed(() => isTranscribing(editText.value))
 const ipaNote = ref<string | null>(null)
-async function fetchIpa() {
+/**
+ * Фоновая генерация: задача сама сделает PATCH по завершении, поэтому
+ * транскрипция догенерится и сохранится, даже если уйти со страницы.
+ */
+function fetchIpa() {
   if (ipaBusy.value || !editText.value.trim()) return
-  ipaBusy.value = true
   ipaNote.value = null
-  try {
-    const ipa = await fetchPronunciation(editText.value, { force: true })
-    if (ipa) {
-      editTranscription.value = ipa
-      await saveWord() // сразу сохраняем — не нажимать «сохранить» отдельно
-    } else {
-      ipaNote.value = 'транскрипция не нашлась'
-    }
-  } finally {
-    ipaBusy.value = false
-  }
+  generateTranscription(editText.value, {
+    wordId: id,
+    onResult: (ipa) => {
+      if (ipa) editTranscription.value = ipa
+      else ipaNote.value = 'транскрипция не нашлась'
+    },
+  })
 }
 
 async function load() {
@@ -167,9 +166,8 @@ onMounted(load)
         <input v-model="editText" />
         <div class="tr-row">
           <input v-model="editTranscription" placeholder="транскрипция" />
-          <button class="link" :disabled="ipaBusy" @click="fetchIpa">
-            {{ ipaBusy ? '…' : 'сгенерить' }}
-          </button>
+          <span v-if="ipaBusy" class="spinner" aria-label="генерится" />
+          <button class="link" :disabled="ipaBusy" @click="fetchIpa">сгенерить</button>
         </div>
         <p v-if="ipaNote" class="muted small">{{ ipaNote }}</p>
         <p v-if="word.is_phrase" class="muted small">фраза</p>
@@ -251,7 +249,8 @@ onMounted(load)
   flex: 1;
   min-width: 0;
 }
-.tr-row .link {
+.tr-row .link,
+.tr-row .spinner {
   flex: none;
 }
 .save-frame {
