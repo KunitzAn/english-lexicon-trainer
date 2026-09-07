@@ -51,14 +51,14 @@ function pickBritishIpa(entries: FreeDictEntry[]): string | null {
   return cleanIpa((uk ?? all[0]!).text)
 }
 
-interface FreeDictResult {
+interface IpaResult {
   ipa: string | null
   /** можно ли кэшировать (200/404 — да; 429/5xx/сеть — нет, повторим позже) */
   cacheable: boolean
   detail: string
 }
 
-async function fetchFreeDict(word: string): Promise<FreeDictResult> {
+async function fetchFreeDict(word: string): Promise<IpaResult> {
   const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
   try {
     const res = await fetch(url, { headers: { accept: 'application/json' } })
@@ -87,6 +87,84 @@ async function fetchFreeDict(word: string): Promise<FreeDictResult> {
   }
 }
 
+// --- Wiktionary (en.wiktionary.org) — запасной источник ---
+// Free Dictionary сам берёт данные отсюда; идём напрямую, когда тот лежит.
+
+/** IPA из англ. секции вики-текста. Предпочитаем RP/UK-строку. */
+function extractEnIpa(wikitext: string): string | null {
+  const m = wikitext.match(
+    /(?:^|\n)==\s*English\s*==\n([\s\S]*?)(?=\n==[^=]|$)/,
+  )
+  const section = m ? m[1]! : wikitext
+  const lines = section.split('\n').filter((l) => /\{\{IPA\|en[|}]/.test(l))
+  if (!lines.length) return null
+  const pref =
+    lines.find((l) => /\bRP\b|\bUK\b|Received Pronunciation|British/i.test(l)) ??
+    lines[0]!
+  const im = pref.match(/\{\{IPA\|en\|([^}]*)\}\}/)
+  if (!im) return null
+  const first = im[1]!.split(/[|,]/)[0]!.trim()
+  return cleanIpa(first)
+}
+
+async function fetchWiktionary(word: string): Promise<IpaResult> {
+  const url =
+    `https://en.wiktionary.org/w/api.php?action=parse&prop=wikitext` +
+    `&formatversion=2&format=json&redirects=1&page=${encodeURIComponent(word)}`
+  try {
+    const res = await fetch(url, {
+      headers: {
+        accept: 'application/json',
+        'user-agent':
+          'english-lexicon-trainer/1.0 (personal vocab PWA; contact via github)',
+      },
+    })
+    if (!res.ok) {
+      return { ipa: null, cacheable: false, detail: `wiktionary http ${res.status}` }
+    }
+    const data = (await res.json()) as {
+      parse?: { wikitext?: string }
+      error?: { code?: string }
+    }
+    if (data.error) {
+      // missingtitle — статьи нет, это окончательный ответ
+      const missing = data.error.code === 'missingtitle'
+      return {
+        ipa: null,
+        cacheable: missing,
+        detail: `wiktionary error=${data.error.code ?? '?'}`,
+      }
+    }
+    const wt = data.parse?.wikitext
+    if (typeof wt !== 'string') {
+      return { ipa: null, cacheable: true, detail: 'wiktionary: пустой ответ' }
+    }
+    const ipa = extractEnIpa(wt)
+    return { ipa, cacheable: true, detail: `wiktionary ok, ipa=${ipa ?? '—'}` }
+  } catch (e) {
+    return {
+      ipa: null,
+      cacheable: false,
+      detail: `wiktionary упал: ${e instanceof Error ? e.message : String(e)}`,
+    }
+  }
+}
+
+/** Free Dictionary, при неудаче — Wiktionary. */
+async function resolveIpa(word: string): Promise<IpaResult> {
+  const primary = await fetchFreeDict(word)
+  if (primary.ipa) return primary
+
+  const backup = await fetchWiktionary(word)
+  if (backup.ipa) return backup
+  return {
+    ipa: null,
+    // кэшируем «нет транскрипции», только если ОБА источника ответили окончательно
+    cacheable: primary.cacheable && backup.cacheable,
+    detail: `${primary.detail} | ${backup.detail}`,
+  }
+}
+
 async function writeCache(db: ReturnType<typeof getDb>, q: string, ipa: string | null) {
   await db
     .insert(translationCache)
@@ -98,8 +176,8 @@ async function writeCache(db: ReturnType<typeof getDb>, q: string, ipa: string |
 }
 
 /**
- * Транскрипция слова: кэш → Free Dictionary (на сервере) → запись в кэш.
- * `?force=1` — мимо кэша, заново сходить в словарь.
+ * Транскрипция слова: кэш → Free Dictionary → Wiktionary (всё на сервере) →
+ * запись в кэш. `?force=1` — мимо кэша, заново сходить в словари.
  */
 export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   ctx,
@@ -129,7 +207,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     }
   }
 
-  const r = await fetchFreeDict(q)
+  const r = await resolveIpa(q)
   console.log(`[pronunciation] q="${q}" force=${force} → ${r.detail}`)
   if (r.cacheable) await writeCache(db, q, r.ipa)
 
