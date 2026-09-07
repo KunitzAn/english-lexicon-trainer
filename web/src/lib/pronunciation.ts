@@ -1,63 +1,17 @@
 import { api } from '@/api'
 
 /**
- * Транскрипция (IPA) слова: серверный кэш → Free Dictionary API из браузера →
- * запись в кэш. Предпочитаем британский вариант (RP), при отсутствии — любой.
- * Хранится без косых скобок (сайты отображения оборачивают в /…/ сами).
+ * Транскрипция (IPA) слова. Free Dictionary API дёргается на сервере
+ * (`/api/words/pronunciation` — у него нет CORS, из браузера «Failed to fetch»),
+ * там же кэш. Клиент только спрашивает результат.
  */
 
 const memo = new Map<string, string | null>()
 const key = (w: string) => w.trim().toLowerCase()
 
-interface FreeDictEntry {
-  phonetic?: string
-  phonetics?: { text?: string; audio?: string }[]
-}
-
-function normIpa(s: string): string | null {
-  const t = s
-    .replace(/^[/[]+/, '')
-    .replace(/[/\]]+$/, '')
-    .trim()
-    .slice(0, 64)
-  return t && /\p{L}/u.test(t) ? t : null
-}
-
-function pickBritish(entries: FreeDictEntry[]): string | null {
-  const all: { text: string; audio: string }[] = []
-  for (const e of entries) {
-    for (const p of e.phonetics ?? []) {
-      if (p.text && p.text.trim()) {
-        all.push({ text: p.text.trim(), audio: (p.audio ?? '').toLowerCase() })
-      }
-    }
-    if (e.phonetic && e.phonetic.trim()) all.push({ text: e.phonetic.trim(), audio: '' })
-  }
-  if (!all.length) return null
-  const uk = all.find((p) => /[-_]uk\.|[-_]gb\.|british/.test(p.audio))
-  return normIpa((uk ?? all[0]!).text)
-}
-
-async function fromFreeDict(word: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-    )
-    if (!res.ok) {
-      console.warn(`[транскрипция] Free Dictionary ${res.status} для «${word}»`)
-      return null
-    }
-    const data: unknown = await res.json()
-    return Array.isArray(data) ? pickBritish(data as FreeDictEntry[]) : null
-  } catch (e) {
-    console.warn(`[транскрипция] запрос к Free Dictionary упал для «${word}»:`, e)
-    return null
-  }
-}
-
 /**
  * Вернёт транскрипцию или null (нет / не англ. одно слово / ошибка).
- * `force` — игнорировать кэш (в т.ч. отрицательный) и заново сходить в словарь.
+ * `force` — мимо кэша (в т.ч. отрицательного), заново сходить в словарь.
  */
 export async function fetchPronunciation(
   rawWord: string,
@@ -67,25 +21,15 @@ export async function fetchPronunciation(
   if (!w || /\s/.test(w)) return null // фразы не ищем
   if (!opts?.force && memo.has(w)) return memo.get(w) ?? null
 
-  let ipa: string | null = null
   try {
-    if (!opts?.force) {
-      const cache = await api<{ ipa: string | null; cached: boolean }>(
-        `/words/pronunciation?q=${encodeURIComponent(w)}`,
-      )
-      if (cache.cached) {
-        memo.set(w, cache.ipa)
-        return cache.ipa
-      }
-    }
-    ipa = await fromFreeDict(w)
-    api('/words/pronunciation', {
-      method: 'POST',
-      body: JSON.stringify({ q: w, ipa }),
-    }).catch(() => {})
-  } catch {
-    ipa = null
+    const r = await api<{ ipa: string | null; detail?: string }>(
+      `/words/pronunciation?q=${encodeURIComponent(w)}${opts?.force ? '&force=1' : ''}`,
+    )
+    if (r.detail) console.info(`[транскрипция] «${w}»: ${r.detail}`)
+    memo.set(w, r.ipa)
+    return r.ipa
+  } catch (e) {
+    console.warn(`[транскрипция] запрос упал для «${w}»:`, e)
+    return null
   }
-  memo.set(w, ipa)
-  return ipa
 }
