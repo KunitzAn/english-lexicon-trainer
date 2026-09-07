@@ -7,9 +7,9 @@ import { error, json } from '../../_lib/http'
 import { normText } from '../../_lib/normalize'
 import { translationCache } from '../../../db/schema'
 
-// IPA от основного источника (Free Dictionary) не устаревает
+// IPA из словаря (Wiktionary / Free Dictionary) не устаревает
 const CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000
-// от запасных источников — короче: даём основному отыграть назад, когда оживёт
+// приблизительная (Datamuse, GenAm) — короче: даём словарям перезаписать RP
 const ALT_TTL_MS = 14 * 24 * 60 * 60 * 1000
 // «нет транскрипции» — совсем ненадолго, источники бывают флаки
 const NEG_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -29,6 +29,9 @@ export function cleanIpa(v: unknown): string | null {
 
 type IpaSource = 'freedict' | 'wiktionary' | 'datamuse'
 
+const FETCH_TIMEOUT_MS = 6000
+const timeout = () => AbortSignal.timeout(FETCH_TIMEOUT_MS)
+
 interface IpaResult {
   ipa: string | null
   /** можно ли кэшировать (окончательный ответ — да; 5xx/сеть — нет, повторим) */
@@ -37,8 +40,9 @@ interface IpaResult {
   detail: string
 }
 
-// --- 1. Free Dictionary API (dictionaryapi.dev) ---
-// Основной. У API нет CORS-заголовков — только с сервера.
+// --- Free Dictionary API (dictionaryapi.dev) ---
+// Запасной: чистая готовая IPA, но хостинг шаткий (массовые 522). У API нет
+// CORS-заголовков — только с сервера. Дёргается, если парсер Wiktionary промахнулся.
 
 interface FreeDictEntry {
   phonetic?: string
@@ -66,7 +70,10 @@ function pickBritishIpa(entries: FreeDictEntry[]): string | null {
 async function fetchFreeDict(word: string): Promise<IpaResult> {
   const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
   try {
-    const res = await fetch(url, { headers: { accept: 'application/json' } })
+    const res = await fetch(url, {
+      headers: { accept: 'application/json' },
+      signal: timeout(),
+    })
     if (res.status === 404) {
       return { ipa: null, cacheable: true, source: null, detail: 'freedict 404' }
     }
@@ -94,8 +101,9 @@ async function fetchFreeDict(word: string): Promise<IpaResult> {
   }
 }
 
-// --- 2. Wiktionary (en.wiktionary.org) ---
-// Free Dictionary сам берёт данные отсюда; идём напрямую, когда тот лежит.
+// --- Wiktionary (en.wiktionary.org) ---
+// Основной: первоисточник, инфра Wikimedia надёжная, есть RP-теги.
+// Минус — парсим вики-текст регэкспом, часть статей без IPA ({{rfp}}).
 
 /** IPA из англ. секции вики-текста. Предпочитаем RP/UK-строку. */
 function extractEnIpa(wikitext: string): string | null {
@@ -123,6 +131,7 @@ async function fetchWiktionary(word: string): Promise<IpaResult> {
         'user-agent':
           'english-lexicon-trainer/1.0 (personal vocab PWA; contact via github)',
       },
+      signal: timeout(),
     })
     if (!res.ok) {
       return { ipa: null, cacheable: false, source: null, detail: `wiktionary http ${res.status}` }
@@ -161,8 +170,8 @@ async function fetchWiktionary(word: string): Promise<IpaResult> {
   }
 }
 
-// --- 3. Datamuse (CMUdict, ARPABET → IPA) ---
-// Общедоступный, почти никогда не лежит. Даёт GenAm, не RP — крайний случай.
+// --- Datamuse (CMUdict, ARPABET → IPA) ---
+// Крайний случай: почти никогда не лежит, но даёт GenAm, не RP.
 
 const ARPA: Record<string, string> = {
   AA: 'ɑ', AE: 'æ', AH: 'ʌ', AO: 'ɔ', AW: 'aʊ', AY: 'aɪ', B: 'b', CH: 'tʃ',
@@ -206,7 +215,10 @@ function arpabetToIpa(pron: string): string | null {
 async function fetchDatamuse(word: string): Promise<IpaResult> {
   const url = `https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=r&max=1`
   try {
-    const res = await fetch(url, { headers: { accept: 'application/json' } })
+    const res = await fetch(url, {
+      headers: { accept: 'application/json' },
+      signal: timeout(),
+    })
     if (!res.ok) {
       return { ipa: null, cacheable: false, source: null, detail: `datamuse http ${res.status}` }
     }
@@ -236,11 +248,11 @@ async function fetchDatamuse(word: string): Promise<IpaResult> {
   }
 }
 
-/** Free Dictionary → Wiktionary → Datamuse. Первый непустой ответ выигрывает. */
+/** Wiktionary → Free Dictionary → Datamuse. Первый непустой ответ выигрывает. */
 async function resolveIpa(word: string): Promise<IpaResult> {
-  const a = await fetchFreeDict(word)
+  const a = await fetchWiktionary(word)
   if (a.ipa) return a
-  const b = await fetchWiktionary(word)
+  const b = await fetchFreeDict(word)
   if (b.ipa) return b
   const c = await fetchDatamuse(word)
   if (c.ipa) return c
@@ -269,7 +281,7 @@ async function writeCache(
 }
 
 /**
- * Транскрипция слова: кэш → Free Dictionary → Wiktionary → Datamuse (всё на
+ * Транскрипция слова: кэш → Wiktionary → Free Dictionary → Datamuse (всё на
  * сервере) → запись в кэш. `?force=1` — мимо кэша, заново сходить в словари.
  */
 export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
@@ -295,7 +307,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
       const payload = hit.responseJson as { ipa: string | null; source?: string }
       const ttl = !payload.ipa
         ? NEG_TTL_MS
-        : payload.source && payload.source !== 'freedict'
+        : payload.source === 'datamuse'
           ? ALT_TTL_MS
           : CACHE_TTL_MS
       if (Date.now() - hit.fetchedAt.getTime() < ttl) {

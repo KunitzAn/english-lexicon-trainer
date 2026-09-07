@@ -34,8 +34,12 @@ async function fetchIpa() {
   ipaNote.value = null
   try {
     const ipa = await fetchPronunciation(editText.value, { force: true })
-    if (ipa) editTranscription.value = ipa
-    else ipaNote.value = 'транскрипция не нашлась'
+    if (ipa) {
+      editTranscription.value = ipa
+      await saveWord() // сразу сохраняем — не нажимать «сохранить» отдельно
+    } else {
+      ipaNote.value = 'транскрипция не нашлась'
+    }
   } finally {
     ipaBusy.value = false
   }
@@ -164,7 +168,7 @@ onMounted(load)
         <div class="tr-row">
           <input v-model="editTranscription" placeholder="транскрипция" />
           <button class="link" :disabled="ipaBusy" @click="fetchIpa">
-            {{ ipaBusy ? '…' : 'подтянуть' }}
+            {{ ipaBusy ? '…' : 'сгенерить' }}
           </button>
         </div>
         <p v-if="ipaNote" class="muted small">{{ ipaNote }}</p>
@@ -178,7 +182,6 @@ onMounted(load)
       <section class="card">
         <h2>Значения</h2>
         <div v-for="s in word.senses" :key="s.id" class="sense">
-          <MasteryBar :value="s.mastery ?? 0" />
           <input v-model="s.translation" placeholder="перевод" />
           <button class="link" @click="toggleSense(s.id)">
             {{ expandedSenses.has(s.id) ? 'скрыть детали' : 'детали' }}

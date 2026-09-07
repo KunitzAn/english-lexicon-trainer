@@ -503,24 +503,25 @@ m -= затухание за (сегодня − prev_day);  m = clamp(m, 0, 100
       дёргает (`lookupWord(word, { noRemote: true })` — только флаг «в
       словаре» + то, что уже в кэше); чего нет в `gloss` — по-прежнему живой
       lookup. Юнит-смоук 8/8.
-- [x] **Автоматическая транскрипция при добавлении слова.** Источник —
-      Free Dictionary API (`api.dictionaryapi.dev`, без ключа), дёргается из
-      браузера как MyMemory; предпочитаем британский вариант (RP), при
-      отсутствии — любой; хранится без косых скобок. Серверный кэш —
-      `translation_cache` с ключом `ipa:en:<слово>` (в т.ч. отрицательный:
-      `ipa: null`), TTL 180 дней, миграции не нужно. `functions/api/words/
-      pronunciation.ts` (GET/POST) + `functions/_lib`… `cleanIpa` (срезает
-      `/…/`, `[…]`, ≤64). `web/src/lib/pronunciation.ts` — `fetchPronunciation`
-      (кэш → Free Dictionary → запись; мемо на вкладку; фразы пропускает).
-      `AddWordView` — поле «транскрипция» + автоподстановка при «найти
-      перевод» (не перетирает ручной ввод), уходит в `POST /words`
-      (принимает `transcription`, при merge пустую заполняет, непустую не
-      трогает). `WordView` — кнопка «подтянуть» рядом с полем. `AllWordsView`
-      — «без транскрипции: N · дозаполнить» — последовательный проход по
-      словам без транскрипции (пауза 220 мс, кнопка «стоп»). Смоук 11/11
-      (кэш, срезание скобок, merge, PATCH). **Живой ответ Free Dictionary в
-      этой сессии проверить не удалось (сеть песочницы блокирует хост) —
-      парсинг по известной форме API, финально подтвердить на проде.**
+- [x] **Автоматическая транскрипция при добавлении слова.** Тянется
+      **на сервере** (у источников нет CORS — из браузера «Failed to fetch»).
+      Цепочка `functions/api/words/pronunciation.ts` `resolveIpa`:
+      **Wiktionary** (`action=parse`, `{{IPA|en|…}}` из англ. секции,
+      предпочитаем RP/UK-строку) → **Free Dictionary** (`api.dictionaryapi.dev`,
+      готовая IPA, но хостинг флаки — массовые 522) → **Datamuse**
+      (CMUdict, ARPABET→IPA, GenAm не RP — крайний случай). Таймаут 6 c
+      на источник. Серверный кэш — `translation_cache`, ключ `ipa:en:<слово>`,
+      payload `{ ipa, source }`: словарные — TTL 180 дней, Datamuse — 14 дней
+      (даст словарям перезаписать RP), `ipa: null` — 7 дней (источники флаки).
+      «Нет транскрипции» кэшируется, только если все источники ответили
+      окончательно. `?force=1` — мимо кэша. `web/src/lib/pronunciation.ts`
+      `fetchPronunciation(word, { force })` — только спрашивает сервер, мемо
+      на вкладку, фразы пропускает. `AddWordView` — поле «транскрипция» +
+      автоподстановка при «найти перевод». `WordView` — кнопка «сгенерить»
+      рядом с полем, при успехе слово сохраняется сразу. `AllWordsView` —
+      «без транскрипции: N · дозаполнить» (пауза 220 мс, «стоп», force).
+      Смоук (локальный wrangler → реальная Neon): sophisticated → Datamuse,
+      maelstrom/defenestrate → Wiktionary, subtle/ubiquitous → Free Dictionary.
 - [x] **Готовые заливаемые цветом иконки тем** вместо эмодзи. 54 монохромные
       штриховые иконки из [lucide](https://lucide.dev) (ISC), запечены в
       `web/src/lib/folderIcons.ts` (генератор `scripts/gen-folder-icons.mjs`
