@@ -7,9 +7,11 @@ import { error, json } from '../../_lib/http'
 import { normText } from '../../_lib/normalize'
 import { translationCache } from '../../../db/schema'
 
-// IPA не устаревает — держим дольше переводов
+// IPA от основного источника (Free Dictionary) не устаревает
 const CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000
-// «нет транскрипции» кэшируем ненадолго — источник бывает флаки, даём отлежаться
+// от запасных источников — короче: даём основному отыграть назад, когда оживёт
+const ALT_TTL_MS = 14 * 24 * 60 * 60 * 1000
+// «нет транскрипции» — совсем ненадолго, источники бывают флаки
 const NEG_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const keyFor = (q: string) => `ipa:en:${q}`
 
@@ -25,8 +27,18 @@ export function cleanIpa(v: unknown): string | null {
   return s || null
 }
 
-// --- Free Dictionary API (dictionaryapi.dev) ---
-// Тянем на сервере: у API нет CORS-заголовков, из браузера — «Failed to fetch».
+type IpaSource = 'freedict' | 'wiktionary' | 'datamuse'
+
+interface IpaResult {
+  ipa: string | null
+  /** можно ли кэшировать (окончательный ответ — да; 5xx/сеть — нет, повторим) */
+  cacheable: boolean
+  source: IpaSource | null
+  detail: string
+}
+
+// --- 1. Free Dictionary API (dictionaryapi.dev) ---
+// Основной. У API нет CORS-заголовков — только с сервера.
 
 interface FreeDictEntry {
   phonetic?: string
@@ -51,50 +63,43 @@ function pickBritishIpa(entries: FreeDictEntry[]): string | null {
   return cleanIpa((uk ?? all[0]!).text)
 }
 
-interface IpaResult {
-  ipa: string | null
-  /** можно ли кэшировать (200/404 — да; 429/5xx/сеть — нет, повторим позже) */
-  cacheable: boolean
-  detail: string
-}
-
 async function fetchFreeDict(word: string): Promise<IpaResult> {
   const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
   try {
     const res = await fetch(url, { headers: { accept: 'application/json' } })
     if (res.status === 404) {
-      return { ipa: null, cacheable: true, detail: 'http 404 (нет статьи)' }
+      return { ipa: null, cacheable: true, source: null, detail: 'freedict 404' }
     }
     if (!res.ok) {
-      return { ipa: null, cacheable: false, detail: `http ${res.status}` }
+      return { ipa: null, cacheable: false, source: null, detail: `freedict http ${res.status}` }
     }
     const data: unknown = await res.json()
     if (!Array.isArray(data)) {
-      return { ipa: null, cacheable: true, detail: 'ответ не массив' }
+      return { ipa: null, cacheable: true, source: null, detail: 'freedict: ответ не массив' }
     }
     const ipa = pickBritishIpa(data as FreeDictEntry[])
     return {
       ipa,
       cacheable: true,
-      detail: `ok, entries=${data.length}, ipa=${ipa ?? '—'}`,
+      source: ipa ? 'freedict' : null,
+      detail: `freedict ok, ipa=${ipa ?? '—'}`,
     }
   } catch (e) {
     return {
       ipa: null,
       cacheable: false,
-      detail: `fetch упал: ${e instanceof Error ? e.message : String(e)}`,
+      source: null,
+      detail: `freedict упал: ${e instanceof Error ? e.message : String(e)}`,
     }
   }
 }
 
-// --- Wiktionary (en.wiktionary.org) — запасной источник ---
+// --- 2. Wiktionary (en.wiktionary.org) ---
 // Free Dictionary сам берёт данные отсюда; идём напрямую, когда тот лежит.
 
 /** IPA из англ. секции вики-текста. Предпочитаем RP/UK-строку. */
 function extractEnIpa(wikitext: string): string | null {
-  const m = wikitext.match(
-    /(?:^|\n)==\s*English\s*==\n([\s\S]*?)(?=\n==[^=]|$)/,
-  )
+  const m = wikitext.match(/(?:^|\n)==\s*English\s*==\n([\s\S]*?)(?=\n==[^=]|$)/)
   const section = m ? m[1]! : wikitext
   const lines = section.split('\n').filter((l) => /\{\{IPA\|en[|}]/.test(l))
   if (!lines.length) return null
@@ -120,64 +125,152 @@ async function fetchWiktionary(word: string): Promise<IpaResult> {
       },
     })
     if (!res.ok) {
-      return { ipa: null, cacheable: false, detail: `wiktionary http ${res.status}` }
+      return { ipa: null, cacheable: false, source: null, detail: `wiktionary http ${res.status}` }
     }
     const data = (await res.json()) as {
       parse?: { wikitext?: string }
       error?: { code?: string }
     }
     if (data.error) {
-      // missingtitle — статьи нет, это окончательный ответ
       const missing = data.error.code === 'missingtitle'
       return {
         ipa: null,
         cacheable: missing,
+        source: null,
         detail: `wiktionary error=${data.error.code ?? '?'}`,
       }
     }
     const wt = data.parse?.wikitext
     if (typeof wt !== 'string') {
-      return { ipa: null, cacheable: true, detail: 'wiktionary: пустой ответ' }
+      return { ipa: null, cacheable: true, source: null, detail: 'wiktionary: пустой ответ' }
     }
     const ipa = extractEnIpa(wt)
-    return { ipa, cacheable: true, detail: `wiktionary ok, ipa=${ipa ?? '—'}` }
+    return {
+      ipa,
+      cacheable: true,
+      source: ipa ? 'wiktionary' : null,
+      detail: `wiktionary ok, ipa=${ipa ?? '—'}`,
+    }
   } catch (e) {
     return {
       ipa: null,
       cacheable: false,
+      source: null,
       detail: `wiktionary упал: ${e instanceof Error ? e.message : String(e)}`,
     }
   }
 }
 
-/** Free Dictionary, при неудаче — Wiktionary. */
-async function resolveIpa(word: string): Promise<IpaResult> {
-  const primary = await fetchFreeDict(word)
-  if (primary.ipa) return primary
+// --- 3. Datamuse (CMUdict, ARPABET → IPA) ---
+// Общедоступный, почти никогда не лежит. Даёт GenAm, не RP — крайний случай.
 
-  const backup = await fetchWiktionary(word)
-  if (backup.ipa) return backup
-  return {
-    ipa: null,
-    // кэшируем «нет транскрипции», только если ОБА источника ответили окончательно
-    cacheable: primary.cacheable && backup.cacheable,
-    detail: `${primary.detail} | ${backup.detail}`,
+const ARPA: Record<string, string> = {
+  AA: 'ɑ', AE: 'æ', AH: 'ʌ', AO: 'ɔ', AW: 'aʊ', AY: 'aɪ', B: 'b', CH: 'tʃ',
+  D: 'd', DH: 'ð', EH: 'ɛ', ER: 'ɜ', EY: 'eɪ', F: 'f', G: 'ɡ', HH: 'h',
+  IH: 'ɪ', IY: 'i', JH: 'dʒ', K: 'k', L: 'l', M: 'm', N: 'n', NG: 'ŋ',
+  OW: 'oʊ', OY: 'ɔɪ', P: 'p', R: 'ɹ', S: 's', SH: 'ʃ', T: 't', TH: 'θ',
+  UH: 'ʊ', UW: 'u', V: 'v', W: 'w', Y: 'j', Z: 'z', ZH: 'ʒ',
+}
+const ARPA_VOWELS = new Set([
+  'AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'ER', 'EY', 'IH', 'IY', 'OW', 'OY',
+  'UH', 'UW',
+])
+
+/** "S AH0 F IH1 S T IH0 K EY2 T IH0 D" → "səˈfɪstɪˌkeɪtɪd". Знак ударения — перед слоговым онсетом. */
+function arpabetToIpa(pron: string): string | null {
+  const phones = pron.trim().split(/\s+/).filter(Boolean)
+  if (!phones.length) return null
+  const out: string[] = []
+  let onset = 0 // куда вставлять знак ударения (начало текущего слога)
+  for (const p of phones) {
+    const m = p.match(/^([A-Z]+)([0-2]?)$/)
+    if (!m) return null
+    const base = m[1]!
+    const stress = m[2]
+    let sym = ARPA[base]
+    if (!sym) return null
+    if (base === 'AH' && stress === '0') sym = 'ə'
+    else if (base === 'ER' && stress === '0') sym = 'ər'
+    if (ARPA_VOWELS.has(base)) {
+      if (stress === '1') out.splice(onset, 0, 'ˈ')
+      else if (stress === '2') out.splice(onset, 0, 'ˌ')
+      out.push(sym)
+      onset = out.length
+    } else {
+      out.push(sym)
+    }
+  }
+  return cleanIpa(out.join(''))
+}
+
+async function fetchDatamuse(word: string): Promise<IpaResult> {
+  const url = `https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=r&max=1`
+  try {
+    const res = await fetch(url, { headers: { accept: 'application/json' } })
+    if (!res.ok) {
+      return { ipa: null, cacheable: false, source: null, detail: `datamuse http ${res.status}` }
+    }
+    const data = (await res.json()) as { word?: string; tags?: string[] }[]
+    const hit = Array.isArray(data) ? data[0] : undefined
+    if (!hit || hit.word?.toLowerCase() !== word.toLowerCase()) {
+      return { ipa: null, cacheable: true, source: null, detail: 'datamuse: нет слова' }
+    }
+    const pron = hit.tags?.find((t) => t.startsWith('pron:'))?.slice(5)
+    if (!pron) {
+      return { ipa: null, cacheable: true, source: null, detail: 'datamuse: без произношения' }
+    }
+    const ipa = arpabetToIpa(pron)
+    return {
+      ipa,
+      cacheable: true,
+      source: ipa ? 'datamuse' : null,
+      detail: `datamuse ok (GenAm), ipa=${ipa ?? '—'}`,
+    }
+  } catch (e) {
+    return {
+      ipa: null,
+      cacheable: false,
+      source: null,
+      detail: `datamuse упал: ${e instanceof Error ? e.message : String(e)}`,
+    }
   }
 }
 
-async function writeCache(db: ReturnType<typeof getDb>, q: string, ipa: string | null) {
+/** Free Dictionary → Wiktionary → Datamuse. Первый непустой ответ выигрывает. */
+async function resolveIpa(word: string): Promise<IpaResult> {
+  const a = await fetchFreeDict(word)
+  if (a.ipa) return a
+  const b = await fetchWiktionary(word)
+  if (b.ipa) return b
+  const c = await fetchDatamuse(word)
+  if (c.ipa) return c
+  return {
+    ipa: null,
+    // «нет транскрипции» кэшируем, только если ВСЕ ответили окончательно
+    cacheable: a.cacheable && b.cacheable && c.cacheable,
+    source: null,
+    detail: `${a.detail} | ${b.detail} | ${c.detail}`,
+  }
+}
+
+async function writeCache(
+  db: ReturnType<typeof getDb>,
+  q: string,
+  ipa: string | null,
+  source: IpaSource | null,
+) {
   await db
     .insert(translationCache)
-    .values({ query: keyFor(q), responseJson: { ipa }, fetchedAt: new Date() })
+    .values({ query: keyFor(q), responseJson: { ipa, source }, fetchedAt: new Date() })
     .onConflictDoUpdate({
       target: translationCache.query,
-      set: { responseJson: { ipa }, fetchedAt: new Date() },
+      set: { responseJson: { ipa, source }, fetchedAt: new Date() },
     })
 }
 
 /**
- * Транскрипция слова: кэш → Free Dictionary → Wiktionary (всё на сервере) →
- * запись в кэш. `?force=1` — мимо кэша, заново сходить в словари.
+ * Транскрипция слова: кэш → Free Dictionary → Wiktionary → Datamuse (всё на
+ * сервере) → запись в кэш. `?force=1` — мимо кэша, заново сходить в словари.
  */
 export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   ctx,
@@ -199,8 +292,12 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
         .limit(1)
     )[0]
     if (hit) {
-      const payload = hit.responseJson as { ipa: string | null }
-      const ttl = payload.ipa ? CACHE_TTL_MS : NEG_TTL_MS
+      const payload = hit.responseJson as { ipa: string | null; source?: string }
+      const ttl = !payload.ipa
+        ? NEG_TTL_MS
+        : payload.source && payload.source !== 'freedict'
+          ? ALT_TTL_MS
+          : CACHE_TTL_MS
       if (Date.now() - hit.fetchedAt.getTime() < ttl) {
         return json({ query: q, cached: true, ipa: payload.ipa ?? null })
       }
@@ -209,7 +306,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
 
   const r = await resolveIpa(q)
   console.log(`[pronunciation] q="${q}" force=${force} → ${r.detail}`)
-  if (r.cacheable) await writeCache(db, q, r.ipa)
+  if (r.cacheable) await writeCache(db, q, r.ipa, r.source)
 
   return json({ query: q, cached: false, ipa: r.ipa, detail: r.detail })
 }
@@ -223,6 +320,6 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
   if (!q) return error(400, 'q required')
 
   const ipa = cleanIpa(body?.ipa)
-  await writeCache(getDb(ctx.env), q, ipa)
+  await writeCache(getDb(ctx.env), q, ipa, ipa ? 'freedict' : null)
   return json({ ok: true, ipa })
 }
