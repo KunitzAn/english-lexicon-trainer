@@ -50,7 +50,7 @@ async function fillTranscriptions() {
   for (const w of targets) {
     if (ipaFill.cancel) break
     try {
-      const ipa = await fetchPronunciation(w.text)
+      const ipa = await fetchPronunciation(w.text, { force: true })
       if (ipa) {
         await api(`/words/${w.id}`, {
           method: 'PATCH',

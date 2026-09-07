@@ -9,6 +9,8 @@ import { translationCache } from '../../../db/schema'
 
 // IPA не устаревает — держим дольше переводов
 const CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000
+// «нет транскрипции» кэшируем ненадолго — источник бывает флаки, даём отлежаться
+const NEG_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const keyFor = (q: string) => `ipa:en:${q}`
 
 /** Транскрипция без косых скобок, ограниченная длина. Пустое → null. */
@@ -39,9 +41,12 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
       .limit(1)
   )[0]
 
-  if (hit && Date.now() - hit.fetchedAt.getTime() < CACHE_TTL_MS) {
+  if (hit) {
     const payload = hit.responseJson as { ipa: string | null }
-    return json({ query: q, cached: true, ipa: payload.ipa ?? null })
+    const ttl = payload.ipa ? CACHE_TTL_MS : NEG_TTL_MS
+    if (Date.now() - hit.fetchedAt.getTime() < ttl) {
+      return json({ query: q, cached: true, ipa: payload.ipa ?? null })
+    }
   }
   return json({ query: q, cached: false, ipa: null })
 }

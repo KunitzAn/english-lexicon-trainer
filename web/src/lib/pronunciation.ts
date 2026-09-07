@@ -43,34 +43,46 @@ async function fromFreeDict(word: string): Promise<string | null> {
     const res = await fetch(
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
     )
-    if (!res.ok) return null
+    if (!res.ok) {
+      console.warn(`[транскрипция] Free Dictionary ${res.status} для «${word}»`)
+      return null
+    }
     const data: unknown = await res.json()
     return Array.isArray(data) ? pickBritish(data as FreeDictEntry[]) : null
-  } catch {
+  } catch (e) {
+    console.warn(`[транскрипция] запрос к Free Dictionary упал для «${word}»:`, e)
     return null
   }
 }
 
-/** Вернёт транскрипцию или null (нет / не англ. одно слово / ошибка). */
-export async function fetchPronunciation(rawWord: string): Promise<string | null> {
+/**
+ * Вернёт транскрипцию или null (нет / не англ. одно слово / ошибка).
+ * `force` — игнорировать кэш (в т.ч. отрицательный) и заново сходить в словарь.
+ */
+export async function fetchPronunciation(
+  rawWord: string,
+  opts?: { force?: boolean },
+): Promise<string | null> {
   const w = key(rawWord)
   if (!w || /\s/.test(w)) return null // фразы не ищем
-  if (memo.has(w)) return memo.get(w) ?? null
+  if (!opts?.force && memo.has(w)) return memo.get(w) ?? null
 
   let ipa: string | null = null
   try {
-    const cache = await api<{ ipa: string | null; cached: boolean }>(
-      `/words/pronunciation?q=${encodeURIComponent(w)}`,
-    )
-    if (cache.cached) {
-      ipa = cache.ipa
-    } else {
-      ipa = await fromFreeDict(w)
-      api('/words/pronunciation', {
-        method: 'POST',
-        body: JSON.stringify({ q: w, ipa }),
-      }).catch(() => {})
+    if (!opts?.force) {
+      const cache = await api<{ ipa: string | null; cached: boolean }>(
+        `/words/pronunciation?q=${encodeURIComponent(w)}`,
+      )
+      if (cache.cached) {
+        memo.set(w, cache.ipa)
+        return cache.ipa
+      }
     }
+    ipa = await fromFreeDict(w)
+    api('/words/pronunciation', {
+      method: 'POST',
+      body: JSON.stringify({ q: w, ipa }),
+    }).catch(() => {})
   } catch {
     ipa = null
   }

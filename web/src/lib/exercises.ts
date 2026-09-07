@@ -115,7 +115,24 @@ function gapBank(answer: string, text: string, enPool: string[], llmBank: string
   return shuffle([answer, ...distractors])
 }
 
-function toContextExercise(se: ServerExercise, enPool: string[]): Exercise | null {
+/** Переводы других значений того же англ. слова в наборе (кроме указанного). */
+function siblingTranslations(set: TrainingSet, wordSenseId: number): Set<string> {
+  const self = set.cards.find((c) => c.word_sense_id === wordSenseId)
+  if (!self) return new Set()
+  return new Set(
+    set.cards
+      .filter(
+        (c) => c.word_id === self.word_id && c.word_sense_id !== wordSenseId,
+      )
+      .map((c) => norm(c.translation)),
+  )
+}
+
+function toContextExercise(
+  se: ServerExercise,
+  enPool: string[],
+  set: TrainingSet,
+): Exercise | null {
   const p = se.payload
   const gloss = p.glossary?.[0]
   if (!gloss) return null
@@ -130,13 +147,30 @@ function toContextExercise(se: ServerExercise, enPool: string[]): Exercise | nul
       wordGloss: p.gloss,
     }
   }
+  // не предлагаем как дистрактор перевод другого значения того же слова
+  const siblings = siblingTranslations(set, p.word_sense_id)
+  let options = p.options
+  if (siblings.size) {
+    const answerN = norm(p.answer)
+    const kept = p.options.filter(
+      (o) => norm(o) === answerN || !siblings.has(norm(o)),
+    )
+    for (const d of shuffle(set.distractor_pool ?? [])) {
+      if (kept.length >= p.options.length) break
+      const dn = norm(d)
+      if (dn === answerN || siblings.has(dn) || kept.some((k) => norm(k) === dn))
+        continue
+      kept.push(d)
+    }
+    options = shuffle(kept)
+  }
   return {
     kind: 'clickable',
     exercise_id: se.id,
     gloss,
     text: p.text,
     target: p.target,
-    options: p.options,
+    options,
     answer: p.answer,
     wordGloss: p.gloss,
   }
@@ -155,7 +189,7 @@ export function buildExercises(
   const ctxBySense = new Map<number, Exercise>()
   if (format !== 'cards') {
     for (const se of context) {
-      const ex = toContextExercise(se, enPool)
+      const ex = toContextExercise(se, enPool, set)
       if (ex && !ctxBySense.has(se.payload.word_sense_id)) {
         ctxBySense.set(se.payload.word_sense_id, ex)
       }
@@ -191,8 +225,9 @@ export function buildExercises(
       exercises.push(ctx)
       continue
     }
+    // другие значения того же слова — не дистракторы (тоже верный перевод)
     const others = set.cards
-      .filter((c) => c.word_sense_id !== card.word_sense_id)
+      .filter((c) => c.word_id !== card.word_id)
       .map((c) => c.translation)
     const distractors = distractorsFor(card.translation, others, pool, 3)
     const canChoice = distractors.length >= 2

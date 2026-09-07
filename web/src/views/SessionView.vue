@@ -251,7 +251,12 @@ function tapRight(i: number) {
     return
   const id = mLeft.value
   const card = matchEx.value.cards.find((c) => c.word_sense_id === id)!
-  if (norm(card.translation) === norm(matchEx.value.rights[i]!)) {
+  const right = norm(matchEx.value.rights[i]!)
+  // верно, если это перевод любого значения того же англ. слова
+  const ok = matchEx.value.cards.some(
+    (c) => c.word_id === card.word_id && norm(c.translation) === right,
+  )
+  if (ok) {
     mLocked.value = new Set([...mLocked.value, id])
     mLockedR.value = new Set([...mLockedR.value, i])
     mLeft.value = null

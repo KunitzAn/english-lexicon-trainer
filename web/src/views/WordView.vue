@@ -27,12 +27,15 @@ const saved = ref(false)
 let savedTimer: ReturnType<typeof setTimeout> | null = null
 
 const ipaBusy = ref(false)
+const ipaNote = ref<string | null>(null)
 async function fetchIpa() {
   if (ipaBusy.value || !editText.value.trim()) return
   ipaBusy.value = true
+  ipaNote.value = null
   try {
-    const ipa = await fetchPronunciation(editText.value)
+    const ipa = await fetchPronunciation(editText.value, { force: true })
     if (ipa) editTranscription.value = ipa
+    else ipaNote.value = 'транскрипция не нашлась'
   } finally {
     ipaBusy.value = false
   }
@@ -164,6 +167,7 @@ onMounted(load)
             {{ ipaBusy ? '…' : 'подтянуть' }}
           </button>
         </div>
+        <p v-if="ipaNote" class="muted small">{{ ipaNote }}</p>
         <p v-if="word.is_phrase" class="muted small">фраза</p>
         <div class="wmast">
           <span class="label">выученность</span>
