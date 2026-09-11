@@ -7,6 +7,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -140,6 +141,13 @@ export const attempts = pgTable(
     exerciseId: integer('exercise_id'),
     exerciseType: text('exercise_type').notNull(),
     isCorrect: boolean('is_correct'),
+    /**
+     * Вклад в полосу выученности 0..1 (для типов с частичным баллом, напр.
+     * «ввод перевода» — опечатка = 0.5); null = нейтрально (как подсказка),
+     * даже если `is_correct` = false. Отсутствует у старых строк — тогда
+     * выводится из `is_correct` на чтении (см. `_lib/mastery.ts`).
+     */
+    score: real('score'),
     hintUsed: boolean('hint_used').notNull().default(false),
     answeredAt: timestamp('answered_at', { withTimezone: true })
       .notNull()
@@ -184,7 +192,7 @@ export const exercises = pgTable(
     userId: integer('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    type: text('type').notNull(), // 'gap' | 'clickable' (типы 1–2; дальше 3–5)
+    type: text('type').notNull(), // 'gap' | 'clickable' | 'multigap'
     payload: jsonb('payload').notNull(),
     targetSenseIds: integer('target_sense_ids').array().notNull(),
     status: text('status').notNull().default('reserve'),

@@ -85,7 +85,14 @@ export interface TrainingSet {
   distractor_pool: string[]
 }
 
-export type ExerciseType = 'match' | 'flashcard' | 'choice' | 'gap' | 'clickable'
+export type ExerciseType =
+  | 'match'
+  | 'flashcard'
+  | 'choice'
+  | 'gap'
+  | 'clickable'
+  | 'multigap'
+  | 'typed'
 
 /** Формат тренировки: всё вперемешку / только контекст (ИИ) / только карточки (без ИИ). */
 export type TrainingFormat = 'mix' | 'context' | 'cards'
@@ -97,6 +104,8 @@ export interface AttemptDraft {
   exercise_type: ExerciseType
   is_correct: boolean | null
   hint_used: boolean
+  /** Вклад в выученность 0..1; null — нейтрально, даже если is_correct = false (см. «ввод перевода»). */
+  score?: number | null
 }
 
 export interface ProgressRow {
@@ -139,10 +148,20 @@ export interface ClickablePayload {
   gloss?: WordGloss
 }
 
+export interface MultigapPayload {
+  kind: 'multigap'
+  sense_ids: number[] // порядок = порядок пропусков в тексте
+  text: string // 3–4 "___"
+  bank: string[] // 6 слов: ответы + дистракторы
+  answers: string[] // правильное слово на каждый пропуск, тот же порядок что sense_ids
+  glossary: GlossItem[] // по значению на каждый sense_id, тот же порядок
+  gloss?: WordGloss
+}
+
 export interface ServerExercise {
   id: number
-  type: 'gap' | 'clickable'
-  payload: GapPayload | ClickablePayload
+  type: 'gap' | 'clickable' | 'multigap'
+  payload: GapPayload | ClickablePayload | MultigapPayload
 }
 
 export interface GenerateResult {
@@ -182,7 +201,7 @@ export interface SessionSenseRef {
   transcription: string | null
   example: string | null
 }
-export type SessionOutcome = 'correct' | 'wrong' | 'hint'
+export type SessionOutcome = 'correct' | 'almost' | 'wrong' | 'hint'
 export type SessionReviewRow = SessionSenseRef & { outcome: SessionOutcome }
 
 // --- этап 6: прогресс (главная) ---

@@ -4,6 +4,7 @@ import type { AuthedData } from '../_lib/context'
 import type { Env } from '../_lib/env'
 import { readJson } from '../_lib/handler'
 import { error, json } from '../_lib/http'
+import { deriveScore } from '../_lib/mastery'
 import {
   attempts,
   exercises,
@@ -19,6 +20,7 @@ interface AttemptInput {
   exercise_type?: unknown
   is_correct?: unknown
   hint_used?: unknown
+  score?: unknown
 }
 
 interface CleanAttempt {
@@ -28,6 +30,15 @@ interface CleanAttempt {
   exerciseType: string
   isCorrect: boolean | null
   hintUsed: boolean
+  score: number | null
+}
+
+/** `undefined` — не передано (вывести из is_correct), `null` — явно нейтрально, число — 0..1. */
+function cleanScore(v: unknown): number | null | undefined {
+  if (v === null) return null
+  if (v === undefined) return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : undefined
 }
 
 function clean(a: AttemptInput): CleanAttempt | null {
@@ -39,13 +50,17 @@ function clean(a: AttemptInput): CleanAttempt | null {
   if (!Number.isInteger(wordSenseId) || wordSenseId <= 0) return null
   if (!exerciseType) return null
   const exId = Number(a.exercise_id)
+  const isCorrect = a.is_correct === null || a.is_correct === undefined ? null : !!a.is_correct
+  const rawScore = cleanScore(a.score)
   return {
     clientId,
     wordSenseId,
     exerciseId: Number.isInteger(exId) && exId > 0 ? exId : null,
     exerciseType,
-    isCorrect: a.is_correct === null || a.is_correct === undefined ? null : !!a.is_correct,
+    isCorrect,
     hintUsed: !!a.hint_used,
+    // не передан явно — материализуем из is_correct, чтобы mastery.ts мог всегда читать score
+    score: rawScore === undefined ? deriveScore(isCorrect) : rawScore,
   }
 }
 
@@ -94,6 +109,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         exerciseId: a.exerciseId,
         exerciseType: a.exerciseType,
         isCorrect: a.isCorrect,
+        score: a.score,
         hintUsed: a.hintUsed,
       })),
     )

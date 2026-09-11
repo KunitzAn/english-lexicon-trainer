@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
+import { checkTypedAnswer, type TypedVerdict } from '@/lib/answerCheck'
 import {
   clearServerSession,
   endSession,
@@ -16,6 +17,7 @@ import {
   optIsCorrect,
   type Exercise,
   type MatchExercise,
+  type MultigapExercise,
 } from '@/lib/exercises'
 import type {
   AttemptDraft,
@@ -52,6 +54,12 @@ const mLockedR = ref<Set<number>>(new Set())
 const mErred = ref<Set<number>>(new Set()) // EN с ошибочной первой попыткой (для зачёта)
 const mFlash = ref<{ left: number; right: number } | null>(null)
 const mGaveUp = ref(false)
+const typedInput = ref('') // typed: вписанный ответ
+const typedVerdict = ref<TypedVerdict | null>(null)
+const typedGaveUp = ref(false) // typed: «не знаю»
+const mgSlots = ref<(number | null)[]>([]) // multigap: индекс в bank на каждый пропуск
+const mgActive = ref<number | null>(null) // multigap: пропуск, ожидающий слова
+const mgGaveUp = ref(false)
 
 function resetSub() {
   revealed.value = false
@@ -63,6 +71,9 @@ function resetSub() {
   mErred.value = new Set()
   mFlash.value = null
   mGaveUp.value = false
+  typedInput.value = ''
+  typedVerdict.value = null
+  typedGaveUp.value = false
 }
 
 /** Снимок текущего хода для сохранения на сервер. */
@@ -120,12 +131,23 @@ function restartFresh() {
 const current = computed<Exercise | undefined>(() => exercises.value[idx.value])
 const total = computed(() => exercises.value.length)
 
+// multigap: своя длина слотов зависит от упражнения — переинициализируем по смене current
+watch(
+  () => (current.value?.kind === 'multigap' ? current.value : null),
+  (ex) => {
+    mgSlots.value = ex ? new Array(ex.answers.length).fill(null) : []
+    mgActive.value = ex ? 0 : null
+    mgGaveUp.value = false
+  },
+  { immediate: true },
+)
+
 type PickKind = 'choice' | 'gap' | 'clickable'
 const isPick = (k: string): k is PickKind =>
   k === 'choice' || k === 'gap' || k === 'clickable'
 
 function senseRef(ex: Exercise): SenseRef {
-  if (ex.kind === 'flashcard' || ex.kind === 'choice') {
+  if (ex.kind === 'flashcard' || ex.kind === 'choice' || ex.kind === 'typed') {
     const c = ex.card
     return {
       sense_id: c.word_sense_id,
@@ -145,11 +167,17 @@ function senseRef(ex: Exercise): SenseRef {
       example: g.example,
     }
   }
-  throw new Error('senseRef: match has many senses')
+  throw new Error('senseRef: match/multigap have many senses')
 }
 
 function finishExercise(
-  outcomes: { ref: SenseRef; is_correct: boolean | null; hint: boolean }[],
+  outcomes: {
+    ref: SenseRef
+    is_correct: boolean | null
+    hint: boolean
+    /** Вклад в выученность 0..1; не передан — вывести из is_correct (как раньше). */
+    score?: number | null
+  }[],
 ) {
   const c = current.value!
   const exId = 'exercise_id' in c ? c.exercise_id : undefined
@@ -161,10 +189,11 @@ function finishExercise(
       exercise_type: c.kind,
       is_correct: o.is_correct,
       hint_used: o.hint,
+      score: o.score,
     })
     review.value.push({
       ...o.ref,
-      outcome: o.hint ? 'hint' : o.is_correct ? 'correct' : 'wrong',
+      outcome: o.hint ? 'hint' : o.score === 0.5 ? 'almost' : o.is_correct ? 'correct' : 'wrong',
     })
   }
   if (idx.value + 1 >= total.value) finalize()
@@ -228,6 +257,105 @@ function pickClass(opt: string) {
   if (norm(opt) === norm(pickAnswer.value)) return 'ok'
   if (opt === picked.value) return 'bad'
   return ''
+}
+
+// --- typed: ввод перевода вручную ---
+const typedPrompt = computed(() =>
+  current.value?.kind === 'typed'
+    ? current.value.direction === 'en2ru'
+      ? current.value.card.text
+      : current.value.card.translation
+    : '',
+)
+const typedReference = computed(() =>
+  current.value?.kind === 'typed'
+    ? current.value.direction === 'en2ru'
+      ? current.value.card.translation
+      : current.value.card.text
+    : '',
+)
+function typedSubmit() {
+  const c = current.value
+  if (c?.kind !== 'typed' || typedVerdict.value || typedGaveUp.value) return
+  if (!typedInput.value.trim()) return
+  typedVerdict.value = checkTypedAnswer(typedInput.value, typedReference.value, c.direction)
+}
+function typedShowAnswer() {
+  if (typedVerdict.value) return
+  typedGaveUp.value = true
+}
+function typedNext() {
+  const c = current.value
+  if (c?.kind !== 'typed') return
+  const ref = senseRef(c)
+  if (typedGaveUp.value) {
+    finishExercise([{ ref, is_correct: null, hint: true, score: null }])
+    return
+  }
+  const v = typedVerdict.value!
+  finishExercise([
+    {
+      ref,
+      is_correct: v !== 'wrong',
+      hint: false,
+      // неверный ответ — нейтрально для полосы (не штрафуем «ввод перевода»)
+      score: v === 'correct' ? 1 : v === 'almost' ? 0.5 : null,
+    },
+  ])
+}
+
+// --- multigap: несколько пропусков в одном тексте ---
+const mgParts = computed(() =>
+  current.value?.kind === 'multigap' ? current.value.text.split(/_{2,}/) : [],
+)
+const mgUsed = computed(() => new Set(mgSlots.value.filter((x): x is number => x != null)))
+const mgDone = computed(
+  () =>
+    current.value?.kind === 'multigap' &&
+    (mgGaveUp.value || mgSlots.value.every((s) => s != null)),
+)
+function mgTapSlot(i: number) {
+  if (current.value?.kind !== 'multigap' || mgGaveUp.value) return
+  if (mgSlots.value[i] != null) {
+    const slots = [...mgSlots.value]
+    slots[i] = null
+    mgSlots.value = slots
+  }
+  mgActive.value = i
+}
+function mgTapBank(bi: number) {
+  if (
+    current.value?.kind !== 'multigap' ||
+    mgGaveUp.value ||
+    mgUsed.value.has(bi) ||
+    mgActive.value == null
+  )
+    return
+  const slots = [...mgSlots.value]
+  slots[mgActive.value] = bi
+  mgSlots.value = slots
+  const nextEmpty = slots.findIndex((s) => s == null)
+  mgActive.value = nextEmpty === -1 ? null : nextEmpty
+}
+function mgGiveUp() {
+  mgGaveUp.value = true
+}
+function mgNext() {
+  const c = current.value as MultigapExercise
+  if (c?.kind !== 'multigap') return
+  const outcomes = c.glosses.map((g, i) => {
+    const ref: SenseRef = {
+      sense_id: g.word_sense_id,
+      text: g.text,
+      translation: g.translation,
+      transcription: g.transcription,
+      example: g.example,
+    }
+    const bi = mgSlots.value[i]
+    if (bi == null) return { ref, is_correct: null, hint: true }
+    return { ref, is_correct: norm(c.bank[bi]!) === norm(c.answers[i]!), hint: false }
+  })
+  finishExercise(outcomes)
 }
 
 // --- match ---
@@ -315,6 +443,7 @@ async function save() {
 
 const counts = computed(() => ({
   correct: review.value.filter((r) => r.outcome === 'correct').length,
+  almost: review.value.filter((r) => r.outcome === 'almost').length,
   wrong: review.value.filter((r) => r.outcome === 'wrong').length,
   hint: review.value.filter((r) => r.outcome === 'hint').length,
 }))
@@ -433,8 +562,111 @@ const pad = (n: number) => String(n).padStart(2, '0')
         </div>
       </section>
 
+      <!-- typed: ввод перевода вручную -->
+      <section v-else-if="current.kind === 'typed'" class="ex">
+        <p class="label hint-line">
+          {{ current.direction === 'en2ru' ? 'переведи на русский' : 'переведи на английский' }}
+        </p>
+        <p class="q disp" :class="{ mono: current.direction === 'ru2en' }">{{ typedPrompt }}</p>
+        <p
+          v-if="current.direction === 'en2ru' && current.card.transcription"
+          class="tr mono"
+        >
+          /{{ current.card.transcription }}/
+        </p>
+
+        <form
+          v-if="!typedVerdict && !typedGaveUp"
+          class="typed-form"
+          @submit.prevent="typedSubmit"
+        >
+          <input
+            v-model="typedInput"
+            class="typed-input"
+            :class="current.direction === 'ru2en' ? 'mono' : 'disp'"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            placeholder="впиши ответ"
+          />
+          <button type="submit" class="primary" :disabled="!typedInput.trim()">ответить</button>
+        </form>
+        <template v-else>
+          <p
+            class="ans disp"
+            :class="{
+              'ok-txt': typedVerdict === 'correct',
+              'almost-txt': typedVerdict === 'almost',
+              'bad-txt': typedVerdict === 'wrong' || typedGaveUp,
+            }"
+          >
+            <template v-if="typedGaveUp">не отвечено</template>
+            <template v-else-if="typedVerdict === 'correct'">верно!</template>
+            <template v-else-if="typedVerdict === 'almost'">почти — опечатка</template>
+            <template v-else>неверно</template>
+          </p>
+          <p class="ans-ref disp" :class="{ mono: current.direction === 'en2ru' }">
+            {{ typedReference }}
+          </p>
+        </template>
+
+        <button v-if="!typedVerdict && !typedGaveUp" class="link peek" @click="typedShowAnswer">
+          не знаю
+        </button>
+        <div v-if="typedVerdict || typedGaveUp" class="frame next-frame">
+          <button class="primary wide" @click="typedNext">дальше</button>
+        </div>
+      </section>
+
+      <!-- multigap: несколько пропусков в одном тексте -->
+      <section v-else-if="current.kind === 'multigap'" class="ex">
+        <p class="label hint-line">заполните пропуски</p>
+        <p class="sent">
+          <template v-for="(part, pi) in mgParts" :key="pi">
+            <TappableText :text="part" :gloss="current.wordGloss" /><button
+              v-if="pi < mgParts.length - 1"
+              type="button"
+              class="mg-blank mono"
+              :class="{
+                active: mgActive === pi,
+                filled: mgSlots[pi] != null,
+                err: mgGaveUp && mgSlots[pi] == null,
+              }"
+              :disabled="mgGaveUp"
+              @click="mgTapSlot(pi)"
+            >{{ mgSlots[pi] != null ? current.bank[mgSlots[pi]!] : '?' }}</button>
+          </template>
+        </p>
+
+        <div class="mg-bank">
+          <button
+            v-for="(w, bi) in current.bank"
+            :key="bi"
+            type="button"
+            class="chip mono mg-chip"
+            :class="{ used: mgUsed.has(bi) }"
+            :disabled="mgUsed.has(bi) || mgGaveUp"
+            @click="mgTapBank(bi)"
+          >
+            {{ w }}
+          </button>
+        </div>
+
+        <ul v-if="mgGaveUp" class="reveal">
+          <li v-for="(g, gi) in current.glosses" :key="g.word_sense_id">
+            <b class="mono">{{ current.answers[gi] }}</b> — {{ g.translation }}
+          </li>
+        </ul>
+
+        <div v-if="mgDone" class="frame next-frame">
+          <button class="primary wide" @click="mgNext">дальше</button>
+        </div>
+        <button v-else class="link peek" @click="mgGiveUp">показать ответы</button>
+      </section>
+
       <!-- match -->
-      <section v-else class="ex">
+      <section v-else-if="current.kind === 'match'" class="ex">
         <p class="label hint-line">сопоставьте пары</p>
         <div class="cols">
           <div class="col">
@@ -494,12 +726,14 @@ const pad = (n: number) => String(n).padStart(2, '0')
 
       <div class="frame score-frame">
         <div class="score">
-          <span class="mono big">{{ counts.correct }}</span>
+          <span class="mono big">{{ counts.correct + counts.almost }}</span>
           <span class="mono of">/{{ total }}</span>
         </div>
       </div>
       <p class="mono totals">
         <span class="ok-txt">верно {{ counts.correct }}</span> ·
+        <span v-if="counts.almost" class="almost-txt">почти {{ counts.almost }}</span>
+        <span v-if="counts.almost"> · </span>
         <span class="bad-txt">неверно {{ counts.wrong }}</span> ·
         <span class="muted">подсказок {{ counts.hint }}</span>
       </p>
@@ -516,6 +750,9 @@ const pad = (n: number) => String(n).padStart(2, '0')
           <span class="rev-mark" :class="r.outcome" aria-hidden="true">
             <svg v-if="r.outcome === 'correct'" width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <svg v-else-if="r.outcome === 'almost'" width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M4 14c2-4 4-4 6 0s4 4 6 0" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <svg v-else-if="r.outcome === 'wrong'" width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" />
@@ -649,6 +886,68 @@ const pad = (n: number) => String(n).padStart(2, '0')
 .ex-sent {
   color: var(--muted);
   margin: 0 0 1.25rem;
+}
+.ans-ref {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0.25rem 0 0.5rem;
+  color: var(--fg);
+}
+.almost-txt {
+  color: var(--amber);
+}
+
+.typed-form {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.typed-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  font-size: 1.05rem;
+}
+.typed-form button {
+  flex: none;
+  padding: 0.9rem 1.1rem;
+}
+
+.mg-blank {
+  all: unset;
+  cursor: pointer;
+  display: inline-block;
+  min-width: 3.4rem;
+  padding: 0 0.3rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--hero-a);
+  border-bottom: 2px solid var(--hero-a);
+}
+.mg-blank.active {
+  color: var(--sapphire-b);
+  border-bottom-color: var(--sapphire-b);
+}
+.mg-blank.filled {
+  color: var(--fg);
+}
+.mg-blank.err {
+  color: var(--bad-text);
+  border-bottom-color: var(--bad-text);
+}
+.mg-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.mg-chip {
+  width: auto;
+  flex: none;
+}
+.mg-chip.used {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .wide {
@@ -820,6 +1119,9 @@ const pad = (n: number) => String(n).padStart(2, '0')
 }
 .rev-mark.correct {
   color: var(--ok-text);
+}
+.rev-mark.almost {
+  color: var(--amber);
 }
 .rev-mark.wrong {
   color: var(--bad-text);

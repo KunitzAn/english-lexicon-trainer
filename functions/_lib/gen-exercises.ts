@@ -46,11 +46,20 @@ export interface ClickablePayload {
   glossary: GlossItem[]
   gloss?: WordGloss
 }
-export type ExercisePayload = GapPayload | ClickablePayload
+export interface MultigapPayload {
+  kind: 'multigap'
+  sense_ids: number[] // порядок = порядок пропусков в тексте
+  text: string
+  bank: string[] // ровно 6: ответы + дистракторы
+  answers: string[] // порядок = порядок пропусков / sense_ids
+  glossary: GlossItem[] // по значению на каждый sense_id, тот же порядок
+  gloss?: WordGloss
+}
+export type ExercisePayload = GapPayload | ClickablePayload | MultigapPayload
 
 export interface ValidExercise {
-  type: 'gap' | 'clickable'
-  word_sense_id: number
+  type: 'gap' | 'clickable' | 'multigap'
+  sense_ids: number[]
   payload: ExercisePayload
 }
 
@@ -61,12 +70,15 @@ export function buildPrompt(senses: SenseForGen[]): {
   const system = [
     'You generate English C1/C2 vocabulary exercises.',
     'Output ONLY one valid JSON object. No prose, no markdown, no code fences.',
-    'Shape: {"exercises":[ ... ]}. EXACTLY ONE exercise per given sense_id — never two',
-    'for the same sense. The array length must not exceed the number of senses given.',
+    'Shape: {"exercises":[ ... ]}. Each given sense_id may be used in AT MOST ONE',
+    'exercise — never twice. A "multigap" exercise consumes SEVERAL sense_ids at once',
+    '(see below); "gap" and "clickable" each consume exactly one.',
     'It is BETTER to skip a sense than to force it: if the word does not fit its given',
     'sense naturally in a real, idiomatic sentence, omit that sense entirely. A shorter',
     'array of clean exercises beats a full array with strained usage.',
-    'Produce a MIX of both kinds — aim for roughly half "gap" and half "clickable".',
+    'Produce a MIX of all three kinds: prefer "multigap" for roughly a QUARTER of the',
+    'senses when 3-4 of them can plausibly share one short paragraph; split the',
+    'remaining senses roughly evenly between "gap" and "clickable".',
     'Keep every text as SHORT as possible while still natural C1/C2. Do not pad.',
     '',
     'Each sense is: "word" (English headword), "translation" (its meaning in Russian —',
@@ -89,18 +101,28 @@ export function buildPrompt(senses: SenseForGen[]): {
     ' "answer":<the provided Russian translation, copied verbatim>,',
     ' "options":[4 Russian glosses incl. answer; distractors are plausible Russian words clearly wrong for this sense]}.',
     '',
+    'kind "multigap": pick EXACTLY 3 or 4 of the given senses that can naturally appear',
+    ' together in ONE short coherent paragraph (2-4 sentences, about 35-55 words total).',
+    ' Replace each of those words with exactly "___" at the point it is used, in the',
+    ' sense given by its "translation". None of the target words may otherwise appear',
+    ' in the text. Fields: {"kind":"multigap","sense_ids":[<int>,... — in the order the',
+    ' blanks appear left to right in the text],"text":<string with that many ___>,',
+    ' "answers":[<base form of each target English word, SAME order as sense_ids>],',
+    ' "bank":[EXACTLY 6 single English words: the answers plus 2-3 distractors of the',
+    ' same general word class, each wrong in this context]}.',
+    '',
     'No translations inside the English text. No lists. Keep it idiomatic, not contrived.',
     '',
     'Also add "gloss" to EVERY exercise: a JSON object of short Russian translations for the',
     'less common words in "text" that a C1 learner might not know. Skip articles, pronouns,',
     'prepositions, conjunctions and very basic verbs (be/have/do/go/make). Keys = the exact',
     'lowercase English word as it appears in "text"; values = a 1–3 word Russian gloss. At most',
-    '8 entries. For "clickable", do NOT put the target word in "gloss".',
+    '8 entries. For "clickable"/"multigap", do NOT put any blanked target word in "gloss".',
   ].join('\n')
 
   const user =
-    `${senses.length} senses — return AT MOST ${senses.length} exercises, ` +
-    'one per sense_id, "gap"/"clickable" roughly half and half:\n' +
+    `${senses.length} senses — each used in at most one exercise (a "multigap" uses ` +
+    '3-4 at once), mix of "gap"/"clickable"/"multigap":\n' +
     JSON.stringify(
       senses.map((s) => ({
         sense_id: s.sense_id,
@@ -190,6 +212,70 @@ export function validateBatch(
   arr.forEach((raw, i) => {
     if (!raw || typeof raw !== 'object') return skip(`#${i}: не объект`)
     const e = raw as Record<string, unknown>
+
+    if (e.kind === 'multigap') {
+      const tag = `#${i} kind=multigap`
+      const senseIdsRaw = Array.isArray(e.sense_ids)
+        ? e.sense_ids.map((x) => Number(x))
+        : null
+      if (!senseIdsRaw || senseIdsRaw.length < 3 || senseIdsRaw.length > 4)
+        return skip(`${tag}: sense_ids должно быть 3-4, получили ${JSON.stringify(e.sense_ids)}`)
+      if (senseIdsRaw.some((id) => !Number.isInteger(id)))
+        return skip(`${tag}: sense_ids не все целые: ${JSON.stringify(e.sense_ids)}`)
+      if (new Set(senseIdsRaw).size !== senseIdsRaw.length)
+        return skip(`${tag}: повторяющиеся sense_id в ${JSON.stringify(senseIdsRaw)}`)
+      const senses = senseIdsRaw.map((id) => byId.get(id))
+      if (senses.some((s) => !s))
+        return skip(`${tag}: sense_id не из набора ${JSON.stringify(senseIdsRaw)}`)
+      if (senseIdsRaw.some((id) => used.has(id)))
+        return skip(`${tag}: одно из значений уже покрыто`)
+
+      const text = typeof e.text === 'string' ? e.text.trim() : ''
+      if (text.length < 40 || text.length > 420)
+        return skip(`${tag}: длина текста ${text.length} вне 40..420`)
+      const blanks = text.match(/_{2,}/g)
+      if (!blanks || blanks.length !== senseIdsRaw.length)
+        return skip(`${tag}: пропусков "___" = ${blanks?.length ?? 0}, нужно ${senseIdsRaw.length}`)
+      for (const s of senses) {
+        if (wordRe(s!.word).test(text))
+          return skip(`${tag}: целевое слово "${s!.word}" видно в тексте`)
+      }
+      const bank = cleanList(e.bank, 40)
+      if (!bank || bank.length !== 6)
+        return skip(`${tag}: bank = ${JSON.stringify(e.bank)} (нужно ровно 6 уникальных)`)
+      const answersRaw = Array.isArray(e.answers) ? e.answers : null
+      if (!answersRaw || answersRaw.length !== senseIdsRaw.length)
+        return skip(
+          `${tag}: answers длиной ${answersRaw?.length ?? 0} ≠ sense_ids ${senseIdsRaw.length}`,
+        )
+      const answers: string[] = []
+      for (let ai = 0; ai < answersRaw.length; ai++) {
+        const a = typeof answersRaw[ai] === 'string' ? (answersRaw[ai] as string).trim() : ''
+        const inBank = bank.find((b) => norm(b) === norm(a))
+        if (!a || !inBank)
+          return skip(`${tag}: answer #${ai} "${a}" не входит в bank ${JSON.stringify(bank)}`)
+        answers.push(inBank)
+      }
+      for (const id of senseIdsRaw) used.add(id)
+      const glossaries = senseIdsRaw.map((id) => gloss.get(id)!)
+      const cg = cleanWordGloss(e.gloss)
+      if (cg) for (const s of senses) delete cg[s!.word.toLowerCase()]
+      out.push({
+        type: 'multigap',
+        sense_ids: senseIdsRaw,
+        payload: {
+          kind: 'multigap',
+          sense_ids: senseIdsRaw,
+          text: text.replace(/_{2,}/g, '___'),
+          bank,
+          answers,
+          glossary: glossaries,
+          gloss: cg && Object.keys(cg).length ? cg : undefined,
+        },
+      })
+      return
+    }
+
     const senseId = Number(e.sense_id)
     const sense = byId.get(senseId)
     const g = gloss.get(senseId)
@@ -218,7 +304,7 @@ export function validateBatch(
       used.add(senseId)
       out.push({
         type: 'gap',
-        word_sense_id: senseId,
+        sense_ids: [senseId],
         payload: {
           kind: 'gap',
           word_sense_id: senseId,
@@ -250,7 +336,7 @@ export function validateBatch(
       if (cg) delete cg[target.toLowerCase()]
       out.push({
         type: 'clickable',
-        word_sense_id: senseId,
+        sense_ids: [senseId],
         payload: {
           kind: 'clickable',
           word_sense_id: senseId,

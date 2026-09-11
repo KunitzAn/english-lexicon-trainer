@@ -64,6 +64,13 @@
       "when": 1788545928530,
       "tag": "0008_careful_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789128133901,
+      "tag": "0009_thick_power_pack",
+      "breakpoints": true
     }
   ]
 }

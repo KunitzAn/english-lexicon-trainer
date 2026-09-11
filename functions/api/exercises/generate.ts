@@ -109,12 +109,14 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     )
     .limit(MAX_PER_SESSION * 2)
 
+  // Упражнение «покрывает» те свои targets, что входят в запрошенные senseIds.
+  // Для gap/clickable — один target; для multigap — 3-4 сразу, все помечаем разом.
   const covered = new Set<number>()
   const result: OutItem[] = []
   for (const r of reserve) {
-    const t = (r.targets as number[])[0]
-    if (t == null || covered.has(t) || !senseIds.includes(t)) continue
-    covered.add(t)
+    const targets = (r.targets as number[]).filter((t) => senseIds.includes(t))
+    if (!targets.length || targets.some((t) => covered.has(t))) continue
+    for (const t of targets) covered.add(t)
     result.push({ id: r.id, type: r.type, payload: r.payload })
     if (result.length >= MAX_PER_SESSION) break
   }
@@ -210,7 +212,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
             userId: uid,
             type: v.type,
             payload: v.payload,
-            targetSenseIds: [v.word_sense_id],
+            targetSenseIds: v.sense_ids,
             status: 'reserve',
           })),
         )

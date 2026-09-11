@@ -41,12 +41,28 @@ export interface ClickableExercise {
   answer: string
   wordGloss?: WordGloss
 }
+export interface MultigapExercise {
+  kind: 'multigap'
+  exercise_id: number
+  glosses: GlossItem[] // по одному на пропуск, тот же порядок что answers
+  text: string
+  bank: string[] // 6 слов, перемешаны
+  answers: string[] // порядок = порядок пропусков в тексте
+  wordGloss?: WordGloss
+}
+export interface TypedExercise {
+  kind: 'typed'
+  card: TrainingCard
+  direction: 'en2ru' | 'ru2en'
+}
 export type Exercise =
   | MatchExercise
   | FlashcardExercise
   | ChoiceExercise
   | GapExercise
   | ClickableExercise
+  | MultigapExercise
+  | TypedExercise
 
 /** Нормализация для сравнения ответов: ё=е, без регистра и краевых пробелов. */
 export const norm = (s: string) =>
@@ -128,12 +144,28 @@ function siblingTranslations(set: TrainingSet, wordSenseId: number): Set<string>
   )
 }
 
+function toMultigapExercise(se: ServerExercise): MultigapExercise | null {
+  const p = se.payload
+  if (p.kind !== 'multigap') return null
+  if (!p.glossary?.length || p.glossary.length !== p.answers.length) return null
+  return {
+    kind: 'multigap',
+    exercise_id: se.id,
+    glosses: p.glossary,
+    text: p.text,
+    bank: shuffle(p.bank),
+    answers: p.answers,
+    wordGloss: p.gloss,
+  }
+}
+
 function toContextExercise(
   se: ServerExercise,
   enPool: string[],
   set: TrainingSet,
 ): Exercise | null {
   const p = se.payload
+  if (p.kind === 'multigap') return null // отдельный путь — см. toMultigapExercise
   const gloss = p.glossary?.[0]
   if (!gloss) return null
   if (p.kind === 'gap') {
@@ -185,10 +217,21 @@ export function buildExercises(
   // английские слова набора — дистракторы для gap
   const enPool = shuffle(set.cards.map((c) => c.text))
 
-  // контекстные упражнения от ИИ — по одному на значение (в режиме «карточки» игнор)
+  // контекстные упражнения от ИИ — по значению (в режиме «карточки» игнор).
+  // multigap покрывает несколько значений сразу — регистрируем под каждым,
+  // но кладём в готовый список только один раз (pushedCtx ниже).
   const ctxBySense = new Map<number, Exercise>()
   if (format !== 'cards') {
     for (const se of context) {
+      if (se.payload.kind === 'multigap') {
+        const ex = toMultigapExercise(se)
+        if (ex) {
+          for (const sid of se.payload.sense_ids) {
+            if (!ctxBySense.has(sid)) ctxBySense.set(sid, ex)
+          }
+        }
+        continue
+      }
       const ex = toContextExercise(se, enPool, set)
       if (ex && !ctxBySense.has(se.payload.word_sense_id)) {
         ctxBySense.set(se.payload.word_sense_id, ex)
@@ -218,11 +261,25 @@ export function buildExercises(
   }
 
   let i = 0
+  const pushedCtx = new Set<Exercise>() // multigap регистрируется под неск. sense_id — не дублировать
   for (const card of cards) {
     if (inMatch.has(card.word_sense_id)) continue
     const ctx = ctxBySense.get(card.word_sense_id)
     if (ctx) {
-      exercises.push(ctx)
+      if (!pushedCtx.has(ctx)) {
+        exercises.push(ctx)
+        pushedCtx.add(ctx)
+      }
+      continue
+    }
+    // без ИИ: вставить перевод вручную — не требует дистракторов, доступно всегда
+    if (i % 4 === 2) {
+      exercises.push({
+        kind: 'typed',
+        card,
+        direction: Math.random() < 0.5 ? 'en2ru' : 'ru2en',
+      })
+      i++
       continue
     }
     // другие значения того же слова — не дистракторы (тоже верный перевод)
@@ -232,7 +289,7 @@ export function buildExercises(
     const distractors = distractorsFor(card.translation, others, pool, 3)
     const canChoice = distractors.length >= 2
     // в «контексте» карточек нет — только выбор (карточка лишь если выбор не собрать)
-    const wantFlash = format !== 'context' && i % 3 === 0
+    const wantFlash = format !== 'context' && i % 4 === 0
     if (!canChoice || wantFlash) {
       exercises.push({ kind: 'flashcard', card })
     } else {

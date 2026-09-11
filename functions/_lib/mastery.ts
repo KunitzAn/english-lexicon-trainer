@@ -88,7 +88,13 @@ const dayIndex = (d: string) => Math.round(Date.parse(d + 'T00:00:00Z') / 86_400
 
 export interface MasteryDay {
   day: string // 'YYYY-MM-DD' (локальная дата)
-  answers: (boolean | null)[] // true верно, false неверно, null подсказка — в порядке ответа
+  /** вклад ответа 0..1 (1 верно, 0.5 частично, 0 неверно), null — нейтрально (подсказка) */
+  answers: (number | null)[]
+}
+
+/** `is_correct` → вклад по умолчанию, для типов без частичного балла и старых строк без `score`. */
+export function deriveScore(isCorrect: boolean | null): number | null {
+  return isCorrect === true ? 1 : isCorrect === false ? 0 : null
 }
 
 function decayAmount(s: MasterySettings, gapDays: number, learned: boolean): number {
@@ -127,19 +133,19 @@ export function masteryOf(
     }
     let correctSeen = 0
     for (const a of answers) {
-      if (a === true) {
+      if (a === null) continue // нейтрально: подсказка, либо намеренно не штрафуемый промах
+      if (a > 0) {
         const g =
           correctSeen === 0
             ? s.gainNewDay
             : correctSeen === 1
               ? s.gainSameDay
               : s.gainRepeatMore
-        m = clamp(m + g)
+        m = clamp(m + g * a) // частичный балл (напр. 0.5 за опечатку) — доля прироста
         correctSeen++
-      } else if (a === false) {
+      } else {
         m = clamp(m - s.penaltyWrong)
       }
-      // подсказка (null) — без изменений
     }
     prev = di
   }
@@ -169,7 +175,8 @@ export async function masteryForSenses(
   const rows = await db
     .select({
       senseId: attempts.wordSenseId,
-      isCorrect: attempts.isCorrect,
+      // старые строки без `score` — выводим из `is_correct` (deriveScore), поведение не меняется
+      score: sql<number | null>`coalesce(${attempts.score}, case when ${attempts.isCorrect} then 1 when ${attempts.isCorrect} = false then 0 else null end)`,
       day: sql<string>`to_char((${attempts.answeredAt} at time zone 'UTC') + make_interval(mins => ${offsetMin}), 'YYYY-MM-DD')`,
     })
     .from(attempts)
@@ -190,8 +197,8 @@ export async function masteryForSenses(
       days = []
     }
     const last = days[days.length - 1]
-    if (last && last.day === r.day) last.answers.push(r.isCorrect)
-    else days.push({ day: r.day, answers: [r.isCorrect] })
+    if (last && last.day === r.day) last.answers.push(r.score)
+    else days.push({ day: r.day, answers: [r.score] })
   }
   flush()
   return out
