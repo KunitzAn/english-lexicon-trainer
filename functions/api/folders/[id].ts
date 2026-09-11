@@ -7,7 +7,7 @@ import { loadFolder } from '../../_lib/guard'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
 import {
-  loadMasterySettings,
+  loadMasteryHistory,
   masteryForSenses,
   tzOffsetOf,
   wordMastery,
@@ -72,7 +72,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     ctx.data.userId,
     senseRows.map((s) => s.id),
     tzOffsetOf(new URL(ctx.request.url)),
-    await loadMasterySettings(db, ctx.data.userId),
+    await loadMasteryHistory(db, ctx.data.userId),
   )
 
   return json({

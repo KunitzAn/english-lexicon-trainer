@@ -4,7 +4,8 @@ import type { AuthedData } from '../_lib/context'
 import type { Env } from '../_lib/env'
 import { json } from '../_lib/http'
 import {
-  loadMasterySettings,
+  currentMasterySettings,
+  loadMasteryHistory,
   localDay,
   masteryForSenses,
   tzOffsetOf,
@@ -46,7 +47,8 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
   const uid = ctx.data.userId
   const db = getDb(ctx.env)
   const offsetMin = tzOffsetOf(new URL(ctx.request.url))
-  const settings = await loadMasterySettings(db, uid)
+  const history = await loadMasteryHistory(db, uid)
+  const settings = currentMasterySettings(history)
 
   // значения всех живых слов пользователя (+ текст слова для «проблемных»)
   const senseRows = await db
@@ -71,7 +73,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     uid,
     senseRows.map((r) => r.id),
     offsetMin,
-    settings,
+    history,
   )
 
   // «тронутые» значения — по факту попыток (авторитетнее, чем прогресс-строки)

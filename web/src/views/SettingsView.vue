@@ -23,6 +23,10 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
 const savedAt = ref(false)
+/** Применить новые настройки ко всей истории (пересчитать прошлое) или только с сегодня. */
+const applyToPast = ref(true)
+
+const tzq = () => `tz_offset=${-new Date().getTimezoneOffset()}`
 
 function apply(s: MasterySettings) {
   Object.assign(form, s)
@@ -48,9 +52,9 @@ async function save() {
   error.value = null
   savedAt.value = false
   try {
-    const r = await api<{ mastery: MasterySettings }>('/settings', {
+    const r = await api<{ mastery: MasterySettings }>(`/settings?${tzq()}`, {
       method: 'PUT',
-      body: JSON.stringify({ mastery: form }),
+      body: JSON.stringify({ mastery: form, apply_to_past: applyToPast.value }),
     })
     apply(r.mastery)
     savedAt.value = true
@@ -144,6 +148,23 @@ async function resetDefaults() {
           <span>за день простоя (выученное)</span>
           <span class="in">−<input type="number" min="0" max="100" :disabled="!form.decayEnabled || !form.decayAfterLearned" v-model.number="form.decayPerDayLearned" />%</span>
         </label>
+      </section>
+
+      <section class="card">
+        <label class="fld toggle">
+          <span>применить изменения к прошлому</span>
+          <input type="checkbox" v-model="applyToPast" />
+        </label>
+        <p class="hint muted small">
+          <template v-if="applyToPast">
+            пересчитает выученность по всей истории новыми настройками — как
+            сейчас
+          </template>
+          <template v-else>
+            подействует только с сегодняшнего дня; всё, что уже отвечено
+            раньше, останется посчитано по прежним настройкам
+          </template>
+        </p>
       </section>
 
       <div class="actions">

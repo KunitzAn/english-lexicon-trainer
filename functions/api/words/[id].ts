@@ -7,7 +7,7 @@ import { cleanIpa } from './pronunciation'
 import { numParam, readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
 import {
-  loadMasterySettings,
+  loadMasteryHistory,
   masteryForSenses,
   tzOffsetOf,
   wordMastery,
@@ -49,7 +49,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     ctx.data.userId,
     senseIds,
     tzOffsetOf(new URL(ctx.request.url)),
-    await loadMasterySettings(db, ctx.data.userId),
+    await loadMasteryHistory(db, ctx.data.userId),
   )
 
   return json({

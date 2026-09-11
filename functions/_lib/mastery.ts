@@ -5,7 +5,6 @@ import { attempts, users } from '../../db/schema'
 /**
  * Модель выученности значения (этап 5.1). Проценты 0–100, считается из `attempts`
  * проходом по дням с активностью + настройки. День — по локальной полуночи юзера.
- * Пока настройки не редактируются из UI (этап 5.1, шаг 3) — используем дефолты.
  */
 export interface MasterySettings {
   /** +% за верный ответ в новый (ещё не тренированный) день */
@@ -43,6 +42,42 @@ export const DEFAULT_MASTERY_SETTINGS: MasterySettings = {
   decayGraceDays: 3,
 }
 
+/**
+ * История изменений настроек: пользователь может задать, применяются ли новые
+ * настройки ко всей истории (`effectiveFrom` в самое начало) или только с
+ * текущего момента (`effectiveFrom` = сегодняшняя локальная дата) — тогда
+ * дни ДО этой даты по-прежнему считаются по прежним настройкам. Отсортирована
+ * по возрастанию `effectiveFrom`, всегда ≥1 элемент.
+ */
+export interface MasteryHistoryEntry {
+  settings: MasterySettings
+  /** локальная дата 'YYYY-MM-DD', с которой действуют эти настройки */
+  effectiveFrom: string
+}
+export type MasteryHistory = MasteryHistoryEntry[]
+
+/** «Всегда были такими» — раньше самой ранней возможной даты попытки. */
+export const EPOCH_DAY = '0001-01-01'
+
+export const DEFAULT_MASTERY_HISTORY: MasteryHistory = [
+  { settings: DEFAULT_MASTERY_SETTINGS, effectiveFrom: EPOCH_DAY },
+]
+
+/** Настройки, действовавшие в конкретный локальный день (история должна быть отсортирована). */
+function settingsForDay(history: MasteryHistory, day: string): MasterySettings {
+  let cur = history[0]!.settings
+  for (const h of history) {
+    if (h.effectiveFrom <= day) cur = h.settings
+    else break
+  }
+  return cur
+}
+
+/** Настройки, действующие сейчас (последняя запись истории). */
+export function currentMasterySettings(history: MasteryHistory): MasterySettings {
+  return history.length ? history[history.length - 1]!.settings : DEFAULT_MASTERY_SETTINGS
+}
+
 /** Локальная дата 'YYYY-MM-DD' момента `ms` при сдвиге `offsetMin` минут от UTC. */
 export function localDay(ms: number, offsetMin: number): string {
   return new Date(ms + offsetMin * 60_000).toISOString().slice(0, 10)
@@ -56,34 +91,39 @@ export interface MasteryDay {
   answers: (boolean | null)[] // true верно, false неверно, null подсказка — в порядке ответа
 }
 
+function decayAmount(s: MasterySettings, gapDays: number, learned: boolean): number {
+  if (!s.decayEnabled) return 0
+  const applies = s.decayAfterLearned || !learned
+  if (!applies) return 0
+  const rate = learned ? s.decayPerDayLearned : s.decayPerDay
+  const idle = gapDays - 1 // дни строго между активными
+  const eff = idle - s.decayGraceDays
+  return eff > 0 ? rate * eff : 0
+}
+
 /**
  * Прогон выученности значения. `days` — по возрастанию даты, `today` — локальная
- * дата пользователя. Возвращает целое 0..100.
+ * дата пользователя. Для каждого дня в `days` берутся настройки, действовавшие
+ * в этот день по `history` (учитывает «применить только с текущего момента»
+ * из настроек выученности) — гэп простоя между двумя днями считается по
+ * настройкам, действующим на день, в который «пришли». Возвращает целое 0..100.
  */
 export function masteryOf(
   days: MasteryDay[],
   today: string,
-  s: MasterySettings = DEFAULT_MASTERY_SETTINGS,
+  history: MasteryHistory = DEFAULT_MASTERY_HISTORY,
 ): number {
   if (!days.length) return 0
-
-  const decayFor = (gapDays: number, learned: boolean): number => {
-    if (!s.decayEnabled) return 0
-    const applies = s.decayAfterLearned || !learned
-    if (!applies) return 0
-    const rate = learned ? s.decayPerDayLearned : s.decayPerDay
-    const idle = gapDays - 1 // дни строго между активными
-    const eff = idle - s.decayGraceDays
-    return eff > 0 ? rate * eff : 0
-  }
+  const sorted = [...history].sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? -1 : 1))
 
   let m = 0
   let prev: number | null = null
 
   for (const { day, answers } of days) {
+    const s = settingsForDay(sorted, day)
     const di = dayIndex(day)
     if (prev !== null) {
-      m = Math.max(0, m - decayFor(di - prev, m >= s.learnedThreshold))
+      m = Math.max(0, m - decayAmount(s, di - prev, m >= s.learnedThreshold))
     }
     let correctSeen = 0
     for (const a of answers) {
@@ -105,7 +145,8 @@ export function masteryOf(
   }
 
   if (prev !== null) {
-    m = Math.max(0, m - decayFor(dayIndex(today) - prev, m >= s.learnedThreshold))
+    const s = settingsForDay(sorted, today)
+    m = Math.max(0, m - decayAmount(s, dayIndex(today) - prev, m >= s.learnedThreshold))
   }
   return Math.round(clamp(m))
 }
@@ -119,7 +160,7 @@ export async function masteryForSenses(
   userId: number,
   senseIds: number[],
   offsetMin: number,
-  s: MasterySettings = DEFAULT_MASTERY_SETTINGS,
+  history: MasteryHistory = DEFAULT_MASTERY_HISTORY,
 ): Promise<Map<number, number>> {
   const out = new Map<number, number>()
   for (const id of senseIds) out.set(id, 0)
@@ -140,7 +181,7 @@ export async function masteryForSenses(
   let cur = -1
   let days: MasteryDay[] = []
   const flush = () => {
-    if (cur !== -1) out.set(cur, masteryOf(days, today, s))
+    if (cur !== -1) out.set(cur, masteryOf(days, today, history))
   }
   for (const r of rows) {
     if (r.senseId !== cur) {
@@ -198,15 +239,84 @@ export function mergeMasterySettings(raw: unknown): MasterySettings {
   }
 }
 
-/** Настройки выученности пользователя (дефолты, поверх — `users.settings.mastery`). */
-export async function loadMasterySettings(
-  db: Db,
-  userId: number,
-): Promise<MasterySettings> {
+const MAX_HISTORY_ENTRIES = 200
+
+function cleanHistoryEntry(v: unknown): MasteryHistoryEntry | null {
+  if (!v || typeof v !== 'object') return null
+  const o = v as Record<string, unknown>
+  const effectiveFrom =
+    typeof o.effectiveFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.effectiveFrom)
+      ? o.effectiveFrom
+      : null
+  if (!effectiveFrom) return null
+  return { settings: mergeMasterySettings(o.settings), effectiveFrom }
+}
+
+/**
+ * История настроек выученности пользователя. Легаси-формат (одиночный объект
+ * в `settings.mastery`, до появления истории) оборачивается записью с начала
+ * времён — поведение не меняется для тех, кто ни разу не сохранял настройки
+ * после этого изменения.
+ */
+export async function loadMasteryHistory(db: Db, userId: number): Promise<MasteryHistory> {
   const [u] = await db
     .select({ settings: users.settings })
     .from(users)
     .where(eq(users.id, userId))
-  const raw = (u?.settings as Record<string, unknown> | null)?.mastery
-  return mergeMasterySettings(raw)
+  const raw = (u?.settings as Record<string, unknown> | null) ?? {}
+
+  if (Array.isArray(raw.masteryHistory) && raw.masteryHistory.length) {
+    const cleaned = raw.masteryHistory
+      .map(cleanHistoryEntry)
+      .filter((h): h is MasteryHistoryEntry => h !== null)
+      .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? -1 : 1))
+    if (cleaned.length) return cleaned
+  }
+  if (raw.mastery) {
+    return [{ settings: mergeMasterySettings(raw.mastery), effectiveFrom: EPOCH_DAY }]
+  }
+  return DEFAULT_MASTERY_HISTORY
+}
+
+/**
+ * Сохранить новые настройки. `applyToPast: true` (по умолчанию — как было до
+ * появления этой опции) — заменить всю историю новыми настройками, будто они
+ * действовали всегда. `false` — новые настройки действуют только с сегодняшнего
+ * локального дня (`today`), дни до него по-прежнему считаются по прежним.
+ */
+export async function saveMasterySettings(
+  db: Db,
+  userId: number,
+  merged: MasterySettings,
+  applyToPast: boolean,
+  today: string,
+): Promise<void> {
+  const [u] = await db
+    .select({ settings: users.settings })
+    .from(users)
+    .where(eq(users.id, userId))
+  const prev = (u?.settings as Record<string, unknown> | null) ?? {}
+
+  const newHistory: MasteryHistory = applyToPast
+    ? [{ settings: merged, effectiveFrom: EPOCH_DAY }]
+    : [
+        ...(await loadMasteryHistory(db, userId)).filter((h) => h.effectiveFrom < today),
+        { settings: merged, effectiveFrom: today },
+      ].slice(-MAX_HISTORY_ENTRIES)
+
+  const next: Record<string, unknown> = { ...prev, masteryHistory: newHistory }
+  delete next.mastery // легаси-ключ больше не пишем, история — источник правды
+  await db.update(users).set({ settings: next }).where(eq(users.id, userId))
+}
+
+/** Сбросить настройки к дефолтам — полностью, ретроактивно (как «к средним»). */
+export async function resetMasterySettings(db: Db, userId: number): Promise<void> {
+  const [u] = await db
+    .select({ settings: users.settings })
+    .from(users)
+    .where(eq(users.id, userId))
+  const prev = { ...((u?.settings as Record<string, unknown> | null) ?? {}) }
+  delete prev.mastery
+  delete prev.masteryHistory
+  await db.update(users).set({ settings: prev }).where(eq(users.id, userId))
 }

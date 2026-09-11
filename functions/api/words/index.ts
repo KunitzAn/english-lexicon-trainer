@@ -6,7 +6,7 @@ import { filterOwnedFolderIds } from '../../_lib/guard'
 import { readJson, str } from '../../_lib/handler'
 import { error, json } from '../../_lib/http'
 import {
-  loadMasterySettings,
+  loadMasteryHistory,
   masteryForSenses,
   tzOffsetOf,
   wordMastery,
@@ -91,7 +91,7 @@ export const onRequestGet: PagesFunction<Env, string, AuthedData> = async (
     uid,
     senses.map((s) => s.id),
     tzOffsetOf(new URL(ctx.request.url)),
-    await loadMasterySettings(db, uid),
+    await loadMasteryHistory(db, uid),
   )
 
   const links = ids.length
