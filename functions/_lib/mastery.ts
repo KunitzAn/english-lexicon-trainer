@@ -27,7 +27,16 @@ export interface MasterySettings {
   decayPerDayLearned: number
   /** сколько дней простоя не тают */
   decayGraceDays: number
+  /** множитель прироста (%) по типу упражнения — 100 = как есть, не влияет на штраф */
+  typeCost: Record<string, number>
 }
+
+/** Типы упражнений (этап B) — стоимость настраивается по каждому. */
+export const EXERCISE_TYPES = ['match', 'choice', 'gap', 'clickable', 'multigap', 'typed'] as const
+
+export const DEFAULT_TYPE_COST: Record<string, number> = Object.fromEntries(
+  EXERCISE_TYPES.map((t) => [t, 100]),
+)
 
 export const DEFAULT_MASTERY_SETTINGS: MasterySettings = {
   gainNewDay: 20,
@@ -40,6 +49,7 @@ export const DEFAULT_MASTERY_SETTINGS: MasterySettings = {
   decayAfterLearned: false,
   decayPerDayLearned: 0,
   decayGraceDays: 3,
+  typeCost: DEFAULT_TYPE_COST,
 }
 
 /**
@@ -86,10 +96,15 @@ export function localDay(ms: number, offsetMin: number): string {
 const clamp = (x: number) => Math.max(0, Math.min(100, x))
 const dayIndex = (d: string) => Math.round(Date.parse(d + 'T00:00:00Z') / 86_400_000)
 
+export interface MasteryAnswer {
+  /** вклад 0..1 (1 верно, 0.5 частично, 0 неверно), null — нейтрально (подсказка) */
+  score: number | null
+  /** тип упражнения — для множителя `typeCost` */
+  type: string
+}
 export interface MasteryDay {
   day: string // 'YYYY-MM-DD' (локальная дата)
-  /** вклад ответа 0..1 (1 верно, 0.5 частично, 0 неверно), null — нейтрально (подсказка) */
-  answers: (number | null)[]
+  answers: MasteryAnswer[]
 }
 
 /** `is_correct` → вклад по умолчанию, для типов без частичного балла и старых строк без `score`. */
@@ -132,7 +147,7 @@ export function masteryOf(
       m = Math.max(0, m - decayAmount(s, di - prev, m >= s.learnedThreshold))
     }
     let correctSeen = 0
-    for (const a of answers) {
+    for (const { score: a, type } of answers) {
       if (a === null) continue // нейтрально: подсказка, либо намеренно не штрафуемый промах
       if (a > 0) {
         const g =
@@ -141,10 +156,11 @@ export function masteryOf(
             : correctSeen === 1
               ? s.gainSameDay
               : s.gainRepeatMore
-        m = clamp(m + g * a) // частичный балл (напр. 0.5 за опечатку) — доля прироста
+        const weight = (s.typeCost[type] ?? 100) / 100
+        m = clamp(m + g * a * weight) // частичный балл × вес типа
         correctSeen++
       } else {
-        m = clamp(m - s.penaltyWrong)
+        m = clamp(m - s.penaltyWrong) // штраф не масштабируется весом типа
       }
     }
     prev = di
@@ -177,6 +193,7 @@ export async function masteryForSenses(
       senseId: attempts.wordSenseId,
       // старые строки без `score` — выводим из `is_correct` (deriveScore), поведение не меняется
       score: sql<number | null>`coalesce(${attempts.score}, case when ${attempts.isCorrect} then 1 when ${attempts.isCorrect} = false then 0 else null end)`,
+      type: attempts.exerciseType,
       day: sql<string>`to_char((${attempts.answeredAt} at time zone 'UTC') + make_interval(mins => ${offsetMin}), 'YYYY-MM-DD')`,
     })
     .from(attempts)
@@ -196,9 +213,10 @@ export async function masteryForSenses(
       cur = r.senseId
       days = []
     }
+    const answer: MasteryAnswer = { score: r.score, type: r.type }
     const last = days[days.length - 1]
-    if (last && last.day === r.day) last.answers.push(r.score)
-    else days.push({ day: r.day, answers: [r.score] })
+    if (last && last.day === r.day) last.answers.push(answer)
+    else days.push({ day: r.day, answers: [answer] })
   }
   flush()
   return out
@@ -243,7 +261,19 @@ export function mergeMasterySettings(raw: unknown): MasterySettings {
     decayAfterLearned: bool('decayAfterLearned'),
     decayPerDayLearned: num('decayPerDayLearned', 0, 100),
     decayGraceDays: num('decayGraceDays', 0, 60),
+    typeCost: mergeTypeCost(o.typeCost),
   }
+}
+
+/** Вес прироста (%) по типу упражнения — только известные типы, 10..300, дефолт 100. */
+function mergeTypeCost(raw: unknown): Record<string, number> {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const out: Record<string, number> = {}
+  for (const t of EXERCISE_TYPES) {
+    const v = Number(o[t])
+    out[t] = Number.isFinite(v) ? Math.max(10, Math.min(300, Math.round(v))) : 100
+  }
+  return out
 }
 
 const MAX_HISTORY_ENTRIES = 200

@@ -2,9 +2,19 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
-import type { MasterySettings } from '@/lib/types'
+import type { ExerciseType, MasterySettings } from '@/lib/types'
 
 const router = useRouter()
+
+const TYPE_ORDER: ExerciseType[] = ['match', 'choice', 'gap', 'multigap', 'clickable', 'typed']
+const TYPE_LABELS: Record<ExerciseType, string> = {
+  match: 'пары',
+  choice: 'выбор перевода',
+  gap: '1 пропуск',
+  multigap: 'мульти-пропуск',
+  clickable: 'что значит слово',
+  typed: 'ввод перевода',
+}
 
 const form = reactive<MasterySettings>({
   gainNewDay: 20,
@@ -17,6 +27,7 @@ const form = reactive<MasterySettings>({
   decayAfterLearned: false,
   decayPerDayLearned: 0,
   decayGraceDays: 3,
+  typeCost: { match: 100, choice: 100, gap: 100, clickable: 100, multigap: 100, typed: 100 },
 })
 
 const loading = ref(true)
@@ -148,6 +159,17 @@ async function resetDefaults() {
           <span>за день простоя (выученное)</span>
           <span class="in">−<input type="number" min="0" max="100" :disabled="!form.decayEnabled || !form.decayAfterLearned" v-model.number="form.decayPerDayLearned" />%</span>
         </label>
+      </section>
+
+      <section class="card">
+        <h2>вес прироста по типам упражнений</h2>
+        <label v-for="t in TYPE_ORDER" :key="t" class="fld">
+          <span>{{ TYPE_LABELS[t] }}</span>
+          <span class="in"><input type="number" min="10" max="300" v-model.number="form.typeCost[t]" />%</span>
+        </label>
+        <p class="hint muted small">
+          100% — как есть; штраф за неверный ответ весом типа не масштабируется
+        </p>
       </section>
 
       <section class="card">

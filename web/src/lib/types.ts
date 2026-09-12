@@ -208,6 +208,8 @@ export interface MasterySettings {
   decayAfterLearned: boolean
   decayPerDayLearned: number
   decayGraceDays: number
+  /** множитель прироста (%) по типу упражнения — 100 = как есть, штраф не масштабирует */
+  typeCost: Record<ExerciseType, number>
 }
 
 // --- этап 5: разбор сессии (сохраняется на сервер) ---
