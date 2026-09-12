@@ -1,43 +1,28 @@
 import { reactive } from 'vue'
 import { api } from '../api'
 import type { Exercise } from './exercises'
-import type {
-  AttemptDraft,
-  ServerExercise,
-  SessionReviewRow,
-  TrainingFormat,
-  TrainingSet,
-} from './types'
+import type { AttemptDraft, SessionReviewRow } from './types'
 
 /**
- * Активный набор для тренировки. TrainView его заполняет и уводит на /train/run;
- * SessionView читает. При перезагрузке страницы пусто → SessionView спросит
- * сервер, есть ли незаконченная сессия (этап 5).
+ * Активная сессия для тренировки. TrainView собирает готовый список
+ * упражнений (этап B — блоки уже развёрнуты, ИИ уже сходил за своими) и
+ * уводит на /train/run; SessionView только его проигрывает. При перезагрузке
+ * страницы пусто → SessionView спросит сервер, есть ли незаконченная сессия
+ * (этап 5).
  */
 export const session = reactive<{
-  set: TrainingSet | null
-  context: ServerExercise[]
-  format: TrainingFormat
+  exercises: Exercise[] | null
   /** Сообщение о сбое генерации ИИ-упражнений — показать один раз в начале сессии. */
   genWarning: string | null
-}>({ set: null, context: [], format: 'mix', genWarning: null })
+}>({ exercises: null, genWarning: null })
 
-export function startSession(
-  set: TrainingSet,
-  context: ServerExercise[] = [],
-  format: TrainingFormat = 'mix',
-  genWarning: string | null = null,
-) {
-  session.set = set
-  session.context = context
-  session.format = format
+export function startSession(exercises: Exercise[], genWarning: string | null = null) {
+  session.exercises = exercises
   session.genWarning = genWarning
 }
 
 export function endSession() {
-  session.set = null
-  session.context = []
-  session.format = 'mix'
+  session.exercises = null
   session.genWarning = null
 }
 
@@ -49,7 +34,6 @@ export interface PersistedSession {
   idx: number
   attempts: AttemptDraft[]
   review: SessionReviewRow[]
-  format: TrainingFormat
 }
 
 function looksLikeSession(s: unknown): s is PersistedSession {

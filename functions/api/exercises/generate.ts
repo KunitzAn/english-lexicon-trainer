@@ -10,6 +10,7 @@ import {
   validateBatch,
   type GlossItem,
   type SenseForGen,
+  type WantKind,
 } from '../../_lib/gen-exercises'
 import {
   bumpQuota,
@@ -21,15 +22,23 @@ import { exercises, generationLog, words, wordSenses } from '../../../db/schema'
 
 const MAX_PER_SESSION = 25
 const RESERVE_MAX_AGE_DAYS = 7
+const WANT_KINDS: WantKind[] = ['gap', 'clickable', 'multigap']
 
 type OutItem = { id: number; type: string; payload: unknown }
 
-/** Собрать контекстные упражнения на сессию: сначала из запаса, потом генерация. */
+/**
+ * Собрать контекстные упражнения на сессию: сначала из запаса, потом генерация.
+ * `want_kind` (этап B) — ограничить и запас, и генерацию одним видом (экран
+ * «один тип» / блок сборки просит именно gap/clickable/multigap). `limit` —
+ * сколько упражнений максимум нужно (по умолчанию — старый MAX_PER_SESSION).
+ */
 export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
   ctx,
 ) => {
   const uid = ctx.data.userId
-  const body = await readJson<{ sense_ids?: unknown }>(ctx.request)
+  const body = await readJson<{ sense_ids?: unknown; want_kind?: unknown; limit?: unknown }>(
+    ctx.request,
+  )
   const senseIds = Array.isArray(body?.sense_ids)
     ? [
         ...new Set(
@@ -39,6 +48,14 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         ),
       ]
     : []
+  const wantKind = WANT_KINDS.includes(body?.want_kind as WantKind)
+    ? (body!.want_kind as WantKind)
+    : undefined
+  const rawLimit = Number(body?.limit)
+  const limit =
+    Number.isInteger(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, MAX_PER_SESSION)
+      : MAX_PER_SESSION
   if (!senseIds.length) {
     return json({ exercises: [], quota_left: 0, degraded: 'no_input' })
   }
@@ -105,6 +122,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         eq(exercises.userId, uid),
         gt(exercises.createdAt, cutoff),
         arrayOverlaps(exercises.targetSenseIds, senseIds),
+        wantKind ? eq(exercises.type, wantKind) : undefined,
       ),
     )
     .limit(MAX_PER_SESSION * 2)
@@ -118,13 +136,11 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
     if (!targets.length || targets.some((t) => covered.has(t))) continue
     for (const t of targets) covered.add(t)
     result.push({ id: r.id, type: r.type, payload: r.payload })
-    if (result.length >= MAX_PER_SESSION) break
+    if (result.length >= limit) break
   }
 
   // 2) добираем генерацией
-  const need = rows
-    .filter((r) => !covered.has(r.senseId))
-    .slice(0, MAX_PER_SESSION - result.length)
+  const need = rows.filter((r) => !covered.has(r.senseId)).slice(0, limit - result.length)
 
   let degraded: string | null = null
   let genDetail: string | null = null
@@ -140,7 +156,7 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
       example: r.example,
     }))
     left = await bumpQuota(db)
-    const { system, user } = buildPrompt(senses)
+    const { system, user } = buildPrompt(senses, wantKind)
     const res = await chatJson(ctx.env.OPENROUTER_API_KEY, system, user)
 
     let valid: ReturnType<typeof validateBatch>['valid'] = []
@@ -153,6 +169,8 @@ export const onRequestPost: PagesFunction<Env, string, AuthedData> = async (
         const v = validateBatch(parsed, senses, gloss)
         valid = v.valid
         rejects = v.rejects
+        // модель попросили один вид — на всякий случай отсекаем, если ослушалась
+        if (wantKind) valid = valid.filter((x) => x.type === wantKind)
         if (!valid.length) errKind = 'invalid'
       }
     }

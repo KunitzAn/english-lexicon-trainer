@@ -12,7 +12,6 @@ import {
   type PersistedSession,
 } from '@/lib/session'
 import {
-  buildExercises,
   norm,
   optIsCorrect,
   type Exercise,
@@ -45,7 +44,6 @@ const saving = ref(false)
 const saveError = ref<string | null>(null)
 
 // --- состояние текущего упражнения ---
-const revealed = ref(false) // flashcard
 const picked = ref<string | null>(null) // pick: выбранный вариант
 const hintShown = ref(false) // pick: подсмотрел перевод
 const mLeft = ref<number | null>(null) // match: выбранный EN (word_sense_id)
@@ -62,7 +60,6 @@ const mgActive = ref<number | null>(null) // multigap: пропуск, ожид�
 const mgGaveUp = ref(false)
 
 function resetSub() {
-  revealed.value = false
   picked.value = null
   hintShown.value = false
   mLeft.value = null
@@ -83,7 +80,6 @@ function snapshot(): PersistedSession {
     idx: idx.value,
     attempts: attempts.value,
     review: review.value,
-    format: session.format,
   }
 }
 function persist() {
@@ -91,9 +87,9 @@ function persist() {
 }
 
 onMounted(async () => {
-  // свежий старт из «Тренировки»
-  if (session.set) {
-    exercises.value = buildExercises(session.set, session.context, session.format)
+  // свежий старт из «Тренировки» — TrainView уже собрал готовый список (этап B)
+  if (session.exercises) {
+    exercises.value = session.exercises
     if (!exercises.value.length) {
       router.replace({ name: 'train' })
       return
@@ -119,7 +115,6 @@ function resumeSaved() {
   idx.value = Math.min(s.idx, s.exercises.length - 1)
   attempts.value = s.attempts
   review.value = s.review
-  session.format = s.format
   pending.value = null
   phase.value = 'run'
 }
@@ -147,7 +142,7 @@ const isPick = (k: string): k is PickKind =>
   k === 'choice' || k === 'gap' || k === 'clickable'
 
 function senseRef(ex: Exercise): SenseRef {
-  if (ex.kind === 'flashcard' || ex.kind === 'choice' || ex.kind === 'typed') {
+  if (ex.kind === 'choice' || ex.kind === 'typed') {
     const c = ex.card
     return {
       sense_id: c.word_sense_id,
@@ -202,11 +197,6 @@ function finishExercise(
     resetSub()
     persist()
   }
-}
-
-// --- flashcard ---
-function flashRate(known: boolean) {
-  finishExercise([{ ref: senseRef(current.value!), is_correct: known, hint: false }])
 }
 
 // --- pick: choice / gap / clickable ---
@@ -495,25 +485,8 @@ const pad = (n: number) => String(n).padStart(2, '0')
         <button class="link" @click="genWarning = null">скрыть</button>
       </p>
 
-      <!-- flashcard -->
-      <section v-if="current.kind === 'flashcard'" class="ex">
-        <p class="q disp">{{ current.card.text }}</p>
-        <p v-if="current.card.transcription" class="tr mono">/{{ current.card.transcription }}/</p>
-        <template v-if="!revealed">
-          <button class="wide" @click="revealed = true">показать перевод</button>
-        </template>
-        <template v-else>
-          <p class="ans disp">{{ current.card.translation }}</p>
-          <p v-if="current.card.example" class="ex-sent"><TappableText :text="current.card.example" /></p>
-          <div class="pair">
-            <button class="wide bad-btn" @click="flashRate(false)">не знал</button>
-            <button class="wide ok-btn" @click="flashRate(true)">знал</button>
-          </div>
-        </template>
-      </section>
-
       <!-- pick: choice / gap / clickable -->
-      <section v-else-if="isPick(current.kind)" class="ex">
+      <section v-if="isPick(current.kind)" class="ex">
         <template v-if="current.kind === 'choice'">
           <p class="q disp">{{ current.card.text }}</p>
           <p v-if="current.card.transcription" class="tr mono">/{{ current.card.transcription }}/</p>

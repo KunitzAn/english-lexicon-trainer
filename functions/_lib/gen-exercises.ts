@@ -63,10 +63,30 @@ export interface ValidExercise {
   payload: ExercisePayload
 }
 
-export function buildPrompt(senses: SenseForGen[]): {
+/** Когда задан — генерировать ТОЛЬКО этот вид (экран «один тип» / блок сборки). */
+export type WantKind = 'gap' | 'clickable' | 'multigap'
+
+export function buildPrompt(
+  senses: SenseForGen[],
+  wantKind?: WantKind,
+): {
   system: string
   user: string
 } {
+  const mixLine = wantKind
+    ? wantKind === 'multigap'
+      ? 'Produce ONLY "multigap" exercises: group ALL given senses into consecutive'
+      : `Produce ONLY "${wantKind}" exercises — one per given sense, every sense used` +
+        ' if it fits naturally.'
+    : 'Produce a MIX of all three kinds: prefer "multigap" for roughly a QUARTER of the ' +
+      'senses when 3-4 of them can plausibly share one short paragraph; split the ' +
+      'remaining senses roughly evenly between "gap" and "clickable".'
+  const multigapGroupingLine = wantKind === 'multigap' ? [
+    ' sets of 3-4 (last group may be smaller, minimum 3; if fewer than 3 senses remain',
+    ' ungrouped at the end, skip them) and produce one "multigap" exercise per group,',
+    ' covering as many of the given senses as possible.',
+  ].join('\n') : ''
+
   const system = [
     'You generate English C1/C2 vocabulary exercises.',
     'Output ONLY one valid JSON object. No prose, no markdown, no code fences.',
@@ -76,9 +96,7 @@ export function buildPrompt(senses: SenseForGen[]): {
     'It is BETTER to skip a sense than to force it: if the word does not fit its given',
     'sense naturally in a real, idiomatic sentence, omit that sense entirely. A shorter',
     'array of clean exercises beats a full array with strained usage.',
-    'Produce a MIX of all three kinds: prefer "multigap" for roughly a QUARTER of the',
-    'senses when 3-4 of them can plausibly share one short paragraph; split the',
-    'remaining senses roughly evenly between "gap" and "clickable".',
+    mixLine + multigapGroupingLine,
     'Keep every text as SHORT as possible while still natural C1/C2. Do not pad.',
     '',
     'Each sense is: "word" (English headword), "translation" (its meaning in Russian —',
@@ -122,7 +140,7 @@ export function buildPrompt(senses: SenseForGen[]): {
 
   const user =
     `${senses.length} senses — each used in at most one exercise (a "multigap" uses ` +
-    '3-4 at once), mix of "gap"/"clickable"/"multigap":\n' +
+    `3-4 at once), ${wantKind ? `ONLY "${wantKind}"` : 'mix of "gap"/"clickable"/"multigap"'}:\n` +
     JSON.stringify(
       senses.map((s) => ({
         sense_id: s.sense_id,

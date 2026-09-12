@@ -1,8 +1,8 @@
 import type {
+  ExerciseType,
   GlossItem,
   ServerExercise,
   TrainingCard,
-  TrainingFormat,
   TrainingSet,
   WordGloss,
 } from './types'
@@ -11,10 +11,6 @@ export interface MatchExercise {
   kind: 'match'
   cards: TrainingCard[] // 3..5
   rights: string[] // переводы карточек, перемешанные
-}
-export interface FlashcardExercise {
-  kind: 'flashcard'
-  card: TrainingCard
 }
 export interface ChoiceExercise {
   kind: 'choice'
@@ -57,7 +53,6 @@ export interface TypedExercise {
 }
 export type Exercise =
   | MatchExercise
-  | FlashcardExercise
   | ChoiceExercise
   | GapExercise
   | ClickableExercise
@@ -208,102 +203,87 @@ function toContextExercise(
   }
 }
 
-export function buildExercises(
-  set: TrainingSet,
-  context: ServerExercise[] = [],
-  format: TrainingFormat = 'mix',
+/** Сколько слов (карточек) съедает один раунд каждого типа — для расчёта размера набора. */
+export const ROUND_WORD_COST: Record<ExerciseType, number> = {
+  match: 4,
+  multigap: 4, // модель делает группы по 3-4 — бюджетируем по максимуму
+  choice: 1,
+  gap: 1,
+  clickable: 1,
+  typed: 1,
+}
+
+export const AI_EXERCISE_TYPES = new Set<ExerciseType>(['gap', 'clickable', 'multigap'])
+
+/** Один блок сборки: тип + его карточки (из общего набора) + ИИ-результат (если тип того требует). */
+export interface BlockResult {
+  type: ExerciseType
+  cards: TrainingCard[]
+  ai?: ServerExercise[]
+}
+
+/**
+ * Собрать финальный список упражнений сессии из явно заданных блоков (этап B):
+ * никакой эвристики про доли — сколько раундов запросили, столько и строим
+ * (насколько хватило слов/сгенерировалось). `allCards`/`distractorPool` — общий
+ * пул сессии (для дистракторов `choice` и защиты от «соседних значений»).
+ */
+export function buildFromBlocks(
+  blocks: BlockResult[],
+  allCards: TrainingCard[],
+  distractorPool: string[],
 ): Exercise[] {
-  const pool = set.distractor_pool ?? []
-  // английские слова набора — дистракторы для gap
-  const enPool = shuffle(set.cards.map((c) => c.text))
+  const enPool = shuffle(allCards.map((c) => c.text))
+  const fakeSet: TrainingSet = {
+    mode: 'auto',
+    limit: allCards.length,
+    new_count: 0,
+    cards: allCards,
+    distractor_pool: distractorPool,
+  }
 
-  // контекстные упражнения от ИИ — по значению (в режиме «карточки» игнор).
-  // multigap покрывает несколько значений сразу — регистрируем под каждым,
-  // но кладём в готовый список только один раз (pushedCtx ниже).
-  const ctxBySense = new Map<number, Exercise>()
-  if (format !== 'cards') {
-    for (const se of context) {
-      if (se.payload.kind === 'multigap') {
+  const out: Exercise[] = []
+  for (const block of blocks) {
+    if (block.type === 'match') {
+      for (const g of matchGroups(shuffle(block.cards))) {
+        out.push({ kind: 'match', cards: g, rights: shuffle(g.map((c) => c.translation)) })
+      }
+    } else if (block.type === 'gap' || block.type === 'clickable') {
+      for (const se of block.ai ?? []) {
+        const ex = toContextExercise(se, enPool, fakeSet)
+        if (ex) out.push(ex)
+      }
+    } else if (block.type === 'multigap') {
+      for (const se of block.ai ?? []) {
         const ex = toMultigapExercise(se)
-        if (ex) {
-          for (const sid of se.payload.sense_ids) {
-            if (!ctxBySense.has(sid)) ctxBySense.set(sid, ex)
-          }
+        if (ex) out.push(ex)
+      }
+    } else if (block.type === 'choice') {
+      for (const card of block.cards) {
+        // другие значения того же слова — не дистракторы (тоже верный перевод)
+        const others = allCards
+          .filter((c) => c.word_id !== card.word_id)
+          .map((c) => c.translation)
+        const distractors = distractorsFor(card.translation, others, distractorPool, 3)
+        if (distractors.length >= 2) {
+          out.push({
+            kind: 'choice',
+            card,
+            answer: card.translation,
+            options: shuffle([card.translation, ...distractors]),
+          })
+        } else {
+          // не набралось дистракторов — без ИИ и без вариантов всё равно тренируем
+          out.push({ kind: 'typed', card, direction: Math.random() < 0.5 ? 'en2ru' : 'ru2en' })
         }
-        continue
       }
-      const ex = toContextExercise(se, enPool, set)
-      if (ex && !ctxBySense.has(se.payload.word_sense_id)) {
-        ctxBySense.set(se.payload.word_sense_id, ex)
+    } else if (block.type === 'typed') {
+      for (const card of block.cards) {
+        out.push({ kind: 'typed', card, direction: Math.random() < 0.5 ? 'en2ru' : 'ru2en' })
       }
     }
   }
-
-  const cards = shuffle(set.cards)
-
-  // раунды «пары» — в mix и cards, из значений без контекстного упражнения
-  const useMatch = format !== 'context'
-  const plain = cards.filter((c) => !ctxBySense.has(c.word_sense_id))
-  const matchN =
-    useMatch && plain.length >= 3
-      ? Math.min(plain.length, Math.max(3, Math.round(plain.length * 0.4)))
-      : 0
-  const forMatch = plain.slice(0, matchN)
-  const inMatch = new Set(forMatch.map((c) => c.word_sense_id))
-
-  const exercises: Exercise[] = []
-  for (const g of matchGroups(forMatch)) {
-    exercises.push({
-      kind: 'match',
-      cards: g,
-      rights: shuffle(g.map((c) => c.translation)),
-    })
-  }
-
-  let i = 0
-  const pushedCtx = new Set<Exercise>() // multigap регистрируется под неск. sense_id — не дублировать
-  for (const card of cards) {
-    if (inMatch.has(card.word_sense_id)) continue
-    const ctx = ctxBySense.get(card.word_sense_id)
-    if (ctx) {
-      if (!pushedCtx.has(ctx)) {
-        exercises.push(ctx)
-        pushedCtx.add(ctx)
-      }
-      continue
-    }
-    // без ИИ: вставить перевод вручную — не требует дистракторов, доступно всегда
-    if (i % 4 === 2) {
-      exercises.push({
-        kind: 'typed',
-        card,
-        direction: Math.random() < 0.5 ? 'en2ru' : 'ru2en',
-      })
-      i++
-      continue
-    }
-    // другие значения того же слова — не дистракторы (тоже верный перевод)
-    const others = set.cards
-      .filter((c) => c.word_id !== card.word_id)
-      .map((c) => c.translation)
-    const distractors = distractorsFor(card.translation, others, pool, 3)
-    const canChoice = distractors.length >= 2
-    // в «контексте» карточек нет — только выбор (карточка лишь если выбор не собрать)
-    const wantFlash = format !== 'context' && i % 4 === 0
-    if (!canChoice || wantFlash) {
-      exercises.push({ kind: 'flashcard', card })
-    } else {
-      exercises.push({
-        kind: 'choice',
-        card,
-        answer: card.translation,
-        options: shuffle([card.translation, ...distractors]),
-      })
-    }
-    i++
-  }
-
-  return shuffle(exercises)
+  return shuffle(out)
 }
 
 export function optIsCorrect(answer: string, picked: string): boolean {

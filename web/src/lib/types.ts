@@ -85,17 +85,35 @@ export interface TrainingSet {
   distractor_pool: string[]
 }
 
-export type ExerciseType =
-  | 'match'
-  | 'flashcard'
-  | 'choice'
-  | 'gap'
-  | 'clickable'
-  | 'multigap'
-  | 'typed'
+export type ExerciseType = 'match' | 'choice' | 'gap' | 'clickable' | 'multigap' | 'typed'
 
-/** Формат тренировки: всё вперемешку / только контекст (ИИ) / только карточки (без ИИ). */
-export type TrainingFormat = 'mix' | 'context' | 'cards'
+/** Виды, требующие ИИ-генерации (остальные — целиком клиентские). */
+export type AiExerciseType = 'gap' | 'clickable' | 'multigap'
+
+/** Этап B: блок сборки тренировки — тип + сколько раундов (= экранов) этого типа. */
+export interface TrainingBlock {
+  type: ExerciseType
+  rounds: number
+}
+
+/** Откуда брать слова для тренировки — общее для «один тип» и «сборки». */
+export interface TrainingSource {
+  mode: 'auto' | 'manual'
+  folder_id: number | null
+}
+
+/** Сохранённый шаблон сборки тренировки. */
+export interface TrainingPresetConfig {
+  source: TrainingSource
+  select_mode: 'single' | 'assembly'
+  single: TrainingBlock
+  blocks: TrainingBlock[]
+}
+export interface TrainingPreset {
+  id: number
+  name: string
+  config: TrainingPresetConfig
+}
 
 export interface AttemptDraft {
   client_id: string

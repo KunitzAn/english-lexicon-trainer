@@ -234,6 +234,26 @@ export const trainingSessions = pgTable(
   (t) => [uniqueIndex('training_sessions_user_uniq').on(t.userId)],
 )
 
+/**
+ * Этап B (упражнения v2). Сохранённый шаблон сборки тренировки — блоки
+ * {type, rounds} + откуда брать слова. `config` целиком — на клиенте.
+ */
+export const trainingPresets = pgTable(
+  'training_presets',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    config: jsonb('config').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('training_presets_user_idx').on(t.userId)],
+)
+
 /** Мини-лог генераций: какие :free-модели реально отдают валидный JSON. */
 export const generationLog = pgTable('generation_log', {
   id: serial('id').primaryKey(),

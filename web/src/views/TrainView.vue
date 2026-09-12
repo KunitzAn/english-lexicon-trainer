@@ -3,29 +3,54 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api'
 import { startSession } from '@/lib/session'
+import {
+  AI_EXERCISE_TYPES,
+  buildFromBlocks,
+  ROUND_WORD_COST,
+  type BlockResult,
+} from '@/lib/exercises'
 import Sparkles from '@/components/Sparkles.vue'
 import type {
+  ExerciseType,
   FolderRow,
   GenerateResult,
   QuotaInfo,
-  TrainingFormat,
+  TrainingBlock,
+  TrainingCard,
+  TrainingPreset,
   TrainingSet,
 } from '@/lib/types'
 
-const HARD_MAX = 25
+const MAX_ROUNDS = 20
+
+const TYPE_META: { type: ExerciseType; label: string; hint: string }[] = [
+  { type: 'match', label: 'пары', hint: 'сопоставить слово и перевод' },
+  { type: 'choice', label: 'выбор перевода', hint: 'выбрать перевод из вариантов' },
+  { type: 'gap', label: '1 пропуск', hint: 'вставить слово в предложение · ИИ' },
+  { type: 'multigap', label: 'мульти-пропуск', hint: 'несколько пропусков в тексте · ИИ' },
+  { type: 'clickable', label: 'что значит слово', hint: 'перевод выделенного слова в тексте · ИИ' },
+  { type: 'typed', label: 'ввод перевода', hint: 'вписать перевод вручную' },
+]
+const labelOf = (t: ExerciseType) => TYPE_META.find((m) => m.type === t)?.label ?? t
 
 const router = useRouter()
 
 const folders = ref<FolderRow[]>([])
 const total = ref(0)
 const mode = ref<'auto' | 'manual'>('auto')
-const format = ref<TrainingFormat>('mix')
 const folderId = ref<number | null>(null)
-const count = ref(10)
 const starting = ref(false)
 const stage = ref<string | null>(null)
 const error = ref<string | null>(null)
 const quota = ref<QuotaInfo | null>(null)
+const presets = ref<TrainingPreset[]>([])
+
+const selectMode = ref<'single' | 'assembly'>('single')
+const singleType = ref<ExerciseType>('choice')
+const singleRounds = ref(8)
+const blocks = ref<TrainingBlock[]>([{ type: 'choice', rounds: 6 }])
+const saveTemplate = ref(false)
+const templateName = ref('')
 
 /** Сколько слов реально доступно: в выбранной теме или во всём словаре. */
 const available = computed(() => {
@@ -34,34 +59,79 @@ const available = computed(() => {
   }
   return total.value
 })
-const sliderMax = computed(() =>
-  available.value > 0 ? Math.min(HARD_MAX, available.value) : HARD_MAX,
+
+const plan = computed<TrainingBlock[]>(() =>
+  selectMode.value === 'single'
+    ? [{ type: singleType.value, rounds: singleRounds.value }]
+    : blocks.value,
 )
-const sliderMin = computed(() => Math.min(5, sliderMax.value))
-/** Заполнение ползунка 0..100% — чтобы дотягивался до краёв точно. */
-const pct = computed(() => {
-  const span = sliderMax.value - sliderMin.value
-  return span <= 0 ? 100 : ((count.value - sliderMin.value) / span) * 100
+const roundsUsed = computed(() => blocks.value.reduce((s, b) => s + b.rounds, 0))
+const wordsNeeded = computed(() =>
+  plan.value.reduce((s, b) => s + b.rounds * ROUND_WORD_COST[b.type], 0),
+)
+
+const singleMaxRounds = computed(() => {
+  const cost = ROUND_WORD_COST[singleType.value]
+  const byWords = available.value > 0 ? Math.floor(available.value / cost) : MAX_ROUNDS
+  return Math.max(1, Math.min(MAX_ROUNDS, byWords))
+})
+watch([singleMaxRounds], () => {
+  if (singleRounds.value > singleMaxRounds.value) singleRounds.value = singleMaxRounds.value
 })
 
-watch([sliderMax, sliderMin], () => {
-  if (count.value > sliderMax.value) count.value = sliderMax.value
-  if (count.value < sliderMin.value) count.value = sliderMin.value
-})
+function addBlock() {
+  if (roundsUsed.value >= MAX_ROUNDS) return
+  const used = new Set(blocks.value.map((b) => b.type))
+  const next = TYPE_META.find((m) => !used.has(m.type))?.type ?? 'choice'
+  blocks.value.push({ type: next, rounds: Math.min(4, MAX_ROUNDS - roundsUsed.value) })
+}
+function removeBlock(i: number) {
+  blocks.value.splice(i, 1)
+}
+/** Не даём одному блоку раздуть общую сумму раундов выше лимита. */
+function clampBlockRounds(i: number) {
+  const b = blocks.value[i]
+  if (!b) return
+  if (b.rounds < 1) b.rounds = 1
+  const others = roundsUsed.value - b.rounds
+  const maxForThis = MAX_ROUNDS - others
+  if (b.rounds > maxForThis) b.rounds = Math.max(1, maxForThis)
+}
 
 onMounted(async () => {
   try {
-    const [f, q] = await Promise.all([
+    const [f, q, p] = await Promise.all([
       api<{ folders: FolderRow[]; total: number }>('/folders'),
       api<QuotaInfo>('/quota').catch(() => null),
+      api<{ presets: TrainingPreset[] }>('/training-presets').catch(() => ({ presets: [] })),
     ])
     folders.value = f.folders
     total.value = f.total
     quota.value = q
+    presets.value = p.presets
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
 })
+
+function applyPreset(p: TrainingPreset) {
+  mode.value = p.config.source.mode
+  folderId.value = p.config.source.folder_id
+  selectMode.value = p.config.select_mode
+  singleType.value = p.config.single.type
+  singleRounds.value = p.config.single.rounds
+  blocks.value = p.config.blocks.map((b) => ({ ...b }))
+}
+function deletePreset(id: number) {
+  presets.value = presets.value.filter((p) => p.id !== id)
+  api(`/training-presets/${id}`, { method: 'DELETE' }).catch(() => {})
+}
+
+function degradeWarning(kindLabel: string, degraded: string): string | null {
+  if (degraded === 'no_key' || degraded === 'no_input') return null
+  if (degraded === 'quota') return `дневной лимит ИИ исчерпан — блок «${kindLabel}» пропущен`
+  return `не удалось сгенерировать «${kindLabel}» — блок пропущен`
+}
 
 async function start() {
   error.value = null
@@ -69,54 +139,96 @@ async function start() {
     error.value = 'Для режима «по теме» выберите тему'
     return
   }
+  if (!plan.value.length || plan.value.every((b) => b.rounds <= 0)) {
+    error.value = 'добавьте хотя бы один блок'
+    return
+  }
+
   starting.value = true
   try {
-    const q = new URLSearchParams({ mode: mode.value, limit: String(count.value) })
-    if (folderId.value) q.set('folder', String(folderId.value))
-
     stage.value = 'собираю набор…'
+    const q = new URLSearchParams({
+      mode: mode.value,
+      limit: String(Math.max(1, wordsNeeded.value)),
+    })
+    if (folderId.value) q.set('folder', String(folderId.value))
     const set = await api<TrainingSet>(`/training-set?${q}`)
     if (!set.cards.length) {
       error.value = 'Нечего тренировать — добавьте слова или выберите другую тему'
       return
     }
 
-    let context: GenerateResult['exercises'] = []
+    // раздать карточки по блокам последовательно, без пересечений
+    const cardsByBlock: TrainingCard[][] = []
+    let cursor = 0
+    for (const b of plan.value) {
+      const need = b.rounds * ROUND_WORD_COST[b.type]
+      cardsByBlock.push(set.cards.slice(cursor, cursor + need))
+      cursor += need
+    }
+
     let genWarning: string | null = null
-    const wantContext = format.value !== 'cards' && quota.value?.enabled
-    if (wantContext) {
-      stage.value = 'готовлю упражнения в контексте…'
+    const results: BlockResult[] = []
+    for (let i = 0; i < plan.value.length; i++) {
+      const b = plan.value[i]!
+      const cards = cardsByBlock[i] ?? []
+      if (!cards.length) continue
+      if (!AI_EXERCISE_TYPES.has(b.type)) {
+        results.push({ type: b.type, cards })
+        continue
+      }
+      if (!quota.value?.enabled) {
+        genWarning ??= `ИИ выключен — блок «${labelOf(b.type)}» пропущен`
+        continue
+      }
+      stage.value = `готовлю «${labelOf(b.type)}»…`
       try {
         const gen = await api<GenerateResult>('/exercises/generate', {
           method: 'POST',
           body: JSON.stringify({
-            sense_ids: set.cards.map((c) => c.word_sense_id),
+            sense_ids: cards.map((c) => c.word_sense_id),
+            want_kind: b.type,
+            limit: b.rounds,
           }),
         })
-        context = gen.exercises
+        results.push({ type: b.type, cards, ai: gen.exercises })
         quota.value = { ...quota.value!, left: gen.quota_left }
         if (gen.degraded) {
           console.warn(
-            `[генерация упражнений] degraded=${gen.degraded}\n${gen.gen_detail ?? ''}`,
+            `[генерация упражнений] «${b.type}» degraded=${gen.degraded}\n${gen.gen_detail ?? ''}`,
           )
-          // no_key/no_input — не сбой, а ожидаемое состояние (ИИ выключен / нечего генерировать)
-          if (gen.degraded === 'quota') {
-            genWarning = 'дневной лимит ИИ-упражнений исчерпан — сегодня без предложений в контексте'
-          } else if (gen.degraded === 'model_failed') {
-            genWarning = 'не удалось сгенерировать упражнения в контексте — идём без ИИ'
-          }
-        } else {
-          console.info(
-            `[генерация упражнений] контекстных: ${gen.exercises.length}, квота осталась: ${gen.quota_left}`,
-          )
+          genWarning ??= degradeWarning(labelOf(b.type), gen.degraded)
         }
       } catch (e) {
-        console.warn('[генерация упражнений] запрос упал:', e)
-        genWarning = 'не удалось сгенерировать упражнения в контексте — идём без ИИ'
+        console.warn(`[генерация упражнений] «${b.type}» запрос упал:`, e)
+        genWarning ??= `не удалось сгенерировать «${labelOf(b.type)}» — блок пропущен`
       }
     }
 
-    startSession(set, context, format.value, genWarning)
+    const exercises = buildFromBlocks(results, set.cards, set.distractor_pool)
+    if (!exercises.length) {
+      error.value = 'Не получилось собрать тренировку — попробуйте другой набор слов'
+      return
+    }
+
+    if (saveTemplate.value && templateName.value.trim()) {
+      api<{ preset: TrainingPreset }>('/training-presets', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: templateName.value.trim(),
+          config: {
+            source: { mode: mode.value, folder_id: folderId.value },
+            select_mode: selectMode.value,
+            single: { type: singleType.value, rounds: singleRounds.value },
+            blocks: blocks.value,
+          },
+        }),
+      })
+        .then((r) => presets.value.push(r.preset))
+        .catch(() => {})
+    }
+
+    startSession(exercises, genWarning)
     router.push({ name: 'train-run' })
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -155,18 +267,6 @@ async function start() {
       </button>
     </div>
 
-    <div class="label">формат</div>
-    <div class="chips">
-      <button :class="{ on: format === 'mix' }" @click="format = 'mix'">вперемешку</button>
-      <button :class="{ on: format === 'context' }" @click="format = 'context'">контекст</button>
-      <button :class="{ on: format === 'cards' }" @click="format = 'cards'">карточки</button>
-    </div>
-    <p class="fmt-hint muted small">
-      <span v-if="format === 'mix'">контекст + карточки вперемешку</span>
-      <span v-else-if="format === 'context'">только предложения с пропуском / выбор перевода</span>
-      <span v-else>пары, самооценка, выбор — без ИИ</span>
-    </p>
-
     <label class="field">
       <span class="label">тема</span>
       <select v-model.number="folderId">
@@ -175,25 +275,93 @@ async function start() {
       </select>
     </label>
 
-    <div class="count-box">
-      <div class="count-top">
-        <div>
-          <span class="mono num">{{ count }}</span>
-          <span class="label">слов</span>
+    <div v-if="presets.length" class="presets">
+      <span class="label">шаблоны</span>
+      <div class="preset-row">
+        <div v-for="p in presets" :key="p.id" class="preset-chip">
+          <button class="preset-btn" @click="applyPreset(p)">{{ p.name }}</button>
+          <button class="preset-del" aria-label="удалить шаблон" @click="deletePreset(p.id)">
+            ×
+          </button>
         </div>
-        <span v-if="available > 0 && available < HARD_MAX" class="mono avail">
-          доступно {{ available }}
-        </span>
       </div>
-      <input
-        type="range"
-        :min="sliderMin"
-        :max="sliderMax"
-        step="1"
-        v-model.number="count"
-        :style="{ '--pct': pct + '%' }"
-      />
     </div>
+
+    <div class="label">тренировка</div>
+    <div class="seg two">
+      <button :class="{ on: selectMode === 'single' }" @click="selectMode = 'single'">
+        <span class="disp t">один тип</span>
+        <span class="s">одно упражнение</span>
+      </button>
+      <button :class="{ on: selectMode === 'assembly' }" @click="selectMode = 'assembly'">
+        <span class="disp t">сборка</span>
+        <span class="s">несколько типов</span>
+      </button>
+    </div>
+
+    <template v-if="selectMode === 'single'">
+      <div class="type-grid">
+        <button
+          v-for="m in TYPE_META"
+          :key="m.type"
+          class="type-tile"
+          :class="{ on: singleType === m.type }"
+          @click="singleType = m.type"
+        >
+          <span class="disp t">{{ m.label }}</span>
+          <span class="s">{{ m.hint }}</span>
+        </button>
+      </div>
+
+      <div class="count-box">
+        <div class="count-top">
+          <div>
+            <span class="mono num">{{ singleRounds }}</span>
+            <span class="label">раундов</span>
+          </div>
+          <span class="mono avail">доступно слов: {{ available }}</span>
+        </div>
+        <input type="range" min="1" :max="singleMaxRounds" step="1" v-model.number="singleRounds" />
+      </div>
+    </template>
+
+    <template v-else>
+      <div class="blocks">
+        <div v-for="(b, i) in blocks" :key="i" class="block-row">
+          <select v-model="b.type">
+            <option v-for="m in TYPE_META" :key="m.type" :value="m.type">{{ m.label }}</option>
+          </select>
+          <input
+            type="number"
+            class="mono block-rounds"
+            min="1"
+            :max="MAX_ROUNDS"
+            v-model.number="b.rounds"
+            @change="clampBlockRounds(i)"
+          />
+          <span class="muted small">раунд.</span>
+          <button class="link block-del" aria-label="убрать блок" @click="removeBlock(i)">
+            ×
+          </button>
+        </div>
+        <p v-if="!blocks.length" class="muted small">блоков нет — добавьте хотя бы один</p>
+      </div>
+      <button class="ghost add-block" :disabled="roundsUsed >= MAX_ROUNDS" @click="addBlock">
+        + добавить блок
+      </button>
+      <p class="mono rounds-total">{{ roundsUsed }} / {{ MAX_ROUNDS }} раундов</p>
+    </template>
+
+    <label class="save-tpl">
+      <input type="checkbox" v-model="saveTemplate" />
+      <span>сохранить как шаблон</span>
+    </label>
+    <input
+      v-if="saveTemplate"
+      v-model="templateName"
+      class="tpl-name"
+      placeholder="название шаблона"
+    />
 
     <div class="frame cta-frame">
       <button class="primary cta" :disabled="starting" @click="start">
@@ -259,29 +427,6 @@ async function start() {
   opacity: 0.62;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-.chips button {
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  background: var(--card);
-  color: var(--muted);
-  border-radius: var(--r-sm);
-}
-.chips button.on {
-  background: linear-gradient(160deg, var(--hero-a), var(--hero-b));
-  color: var(--hero-ink);
-  font-weight: 800;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-.fmt-hint {
-  margin: 0.5rem 0 0;
-}
-
 .field {
   display: flex;
   align-items: center;
@@ -305,6 +450,75 @@ async function start() {
   font-weight: 800;
   text-transform: lowercase;
   padding: 0.5rem 0;
+}
+
+.presets {
+  margin-top: 1rem;
+}
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+.preset-chip {
+  display: flex;
+  align-items: center;
+  background: var(--card);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.preset-btn {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--fg-dim);
+  background: transparent;
+  text-transform: none;
+}
+.preset-del {
+  all: unset;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  color: var(--faint);
+  font-size: 0.9rem;
+}
+
+.type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.type-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.8rem 0.75rem;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  color: var(--muted);
+  text-align: left;
+}
+.type-tile .t {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+.type-tile .s {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: none;
+  line-height: 1.25;
+}
+.type-tile.on {
+  background: var(--grad-hero);
+  color: var(--hero-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.type-tile.on .s {
+  color: var(--hero-ink);
+  opacity: 0.66;
 }
 
 .count-box {
@@ -335,8 +549,73 @@ async function start() {
   color: var(--faint);
 }
 
-.cta-frame {
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 0.5rem 0.6rem;
+}
+.block-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-weight: 700;
+  padding: 0.3rem 0;
+}
+.block-rounds {
+  width: 3.2rem;
+  flex: none;
+  padding: 0.3rem 0.4rem;
+  text-align: center;
+}
+.block-del {
+  all: unset;
+  cursor: pointer;
+  flex: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--faint);
+  padding: 0 0.2rem;
+}
+.add-block {
   margin-top: 0.5rem;
+  width: 100%;
+}
+.rounds-total {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.save-tpl {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--fg-dim);
+}
+.save-tpl input {
+  width: 18px;
+  height: 18px;
+}
+.tpl-name {
+  margin-top: 0.5rem;
+}
+
+.cta-frame {
+  margin-top: 1.2rem;
 }
 .cta {
   width: 100%;

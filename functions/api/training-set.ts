@@ -8,7 +8,8 @@ import { NEW_SHARE, isNew, priorityOf } from '../_lib/priority'
 import { words, wordFolders, wordSenses, wordSenseProgress } from '../../db/schema'
 
 const DEFAULT_LIMIT = 12
-const MAX_LIMIT = 50
+// этап B: до 20 раундов в сессии, «пары»/«мульти-пропуск» — до 4 слов на раунд
+const MAX_LIMIT = 100
 const POOL_SIZE = 40
 
 function shuffle<T>(arr: T[]): T[] {
