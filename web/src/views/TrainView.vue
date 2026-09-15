@@ -224,7 +224,7 @@ async function start() {
       return
     }
 
-    if (saveTemplate.value && templateName.value.trim()) {
+    if (selectMode.value === 'assembly' && saveTemplate.value && templateName.value.trim()) {
       api<{ preset: TrainingPreset }>('/training-presets', {
         method: 'POST',
         body: JSON.stringify({
@@ -402,18 +402,18 @@ async function start() {
         + добавить блок
       </button>
       <p class="mono rounds-total">{{ roundsUsed }} / {{ MAX_ROUNDS }} раундов</p>
-    </template>
 
-    <label class="save-tpl">
-      <input type="checkbox" v-model="saveTemplate" />
-      <span>сохранить как шаблон</span>
-    </label>
-    <input
-      v-if="saveTemplate"
-      v-model="templateName"
-      class="tpl-name"
-      placeholder="название шаблона"
-    />
+      <label class="save-tpl">
+        <input type="checkbox" v-model="saveTemplate" />
+        <span>сохранить как шаблон</span>
+      </label>
+      <input
+        v-if="saveTemplate"
+        v-model="templateName"
+        class="tpl-name"
+        placeholder="название шаблона"
+      />
+    </template>
 
     <div class="frame cta-frame">
       <button class="primary cta" :disabled="starting" @click="start">
