@@ -327,22 +327,27 @@ async function start() {
 
     <template v-else>
       <div class="blocks">
-        <div v-for="(b, i) in blocks" :key="i" class="block-row">
-          <select v-model="b.type">
+        <div v-for="(b, i) in blocks" :key="i" class="block-card">
+          <div class="block-head">
+            <span class="block-num">блок {{ i + 1 }}</span>
+            <button class="link block-del" aria-label="убрать блок" @click="removeBlock(i)">
+              ×
+            </button>
+          </div>
+          <select v-model="b.type" class="block-type-select">
             <option v-for="m in TYPE_META" :key="m.type" :value="m.type">{{ m.label }}</option>
           </select>
-          <input
-            type="number"
-            class="mono block-rounds"
-            min="1"
-            :max="MAX_ROUNDS"
-            v-model.number="b.rounds"
-            @change="clampBlockRounds(i)"
-          />
-          <span class="muted small">раунд.</span>
-          <button class="link block-del" aria-label="убрать блок" @click="removeBlock(i)">
-            ×
-          </button>
+          <div class="block-rounds-row">
+            <input
+              type="number"
+              class="mono block-rounds"
+              min="1"
+              :max="MAX_ROUNDS"
+              v-model.number="b.rounds"
+              @change="clampBlockRounds(i)"
+            />
+            <span class="muted small">раунд.</span>
+          </div>
         </div>
         <p v-if="!blocks.length" class="muted small">блоков нет — добавьте хотя бы один</p>
       </div>
@@ -552,30 +557,41 @@ async function start() {
 .blocks {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
   margin-top: 0.4rem;
 }
-.block-row {
+.block-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 0.6rem 0.7rem;
+}
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.block-num {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.block-type-select {
+  font-weight: 700;
+}
+.block-rounds-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--card);
-  border-radius: var(--r-md);
-  padding: 0.5rem 0.6rem;
-}
-.block-row select {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  color: var(--fg);
-  font-weight: 700;
-  padding: 0.3rem 0;
 }
 .block-rounds {
-  width: 3.2rem;
-  flex: none;
-  padding: 0.3rem 0.4rem;
+  width: 4.5rem;
+  flex: 0 0 4.5rem;
+  padding: 0.35rem 0.4rem;
   text-align: center;
 }
 .block-del {
