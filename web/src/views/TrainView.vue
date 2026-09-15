@@ -23,13 +23,26 @@ import type {
 
 const MAX_ROUNDS = 20
 
-const TYPE_META: { type: ExerciseType; emoji: string; label: string; hint: string }[] = [
-  { type: 'match', emoji: '🧩', label: 'пары', hint: 'сопоставить слово и перевод' },
-  { type: 'choice', emoji: '🎯', label: 'выбор перевода', hint: 'выбрать перевод из вариантов' },
-  { type: 'gap', emoji: '✏️', label: '1 пропуск', hint: 'вставить слово в предложение · ИИ' },
-  { type: 'multigap', emoji: '📝', label: 'мульти-пропуск', hint: 'несколько пропусков в тексте · ИИ' },
-  { type: 'clickable', emoji: '👆', label: 'что значит слово', hint: 'перевод выделенного слова в тексте · ИИ' },
-  { type: 'typed', emoji: '⌨️', label: 'ввод перевода', hint: 'вписать перевод вручную' },
+/** Иконки — линейный набор в духе Feather Icons (MIT), одноцветные. */
+const TYPE_ICON: Record<ExerciseType, string> = {
+  match:
+    '<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
+  choice: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  gap: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+  multigap:
+    '<line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/>',
+  clickable: '<path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/>',
+  typed:
+    '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
+}
+
+const TYPE_META: { type: ExerciseType; label: string; hint: string }[] = [
+  { type: 'match', label: 'пары', hint: 'сопоставить слово и перевод' },
+  { type: 'choice', label: 'выбор перевода', hint: 'выбрать перевод из вариантов' },
+  { type: 'gap', label: '1 пропуск', hint: 'вставить слово в предложение · ИИ' },
+  { type: 'multigap', label: 'мульти-пропуск', hint: 'несколько пропусков в тексте · ИИ' },
+  { type: 'clickable', label: 'что значит слово', hint: 'перевод выделенного слова в тексте · ИИ' },
+  { type: 'typed', label: 'ввод перевода', hint: 'вписать перевод вручную' },
 ]
 const labelOf = (t: ExerciseType) => TYPE_META.find((m) => m.type === t)?.label ?? t
 
@@ -297,7 +310,17 @@ async function start() {
           :class="{ on: singleType === m.type }"
           @click="singleType = m.type"
         >
-          <span class="emoji">{{ m.emoji }}</span>
+          <svg
+            class="type-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            v-html="TYPE_ICON[m.type]"
+          ></svg>
           <span class="disp t">{{ m.label }}</span>
           <span class="s">{{ m.hint }}</span>
         </button>
@@ -315,7 +338,20 @@ async function start() {
       </div>
 
       <button class="assembly-cta" @click="selectMode = 'assembly'">
-        <span class="ico">🛠️</span>
+        <svg
+          class="ico"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path
+            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+          />
+        </svg>
         <span class="txt">
           <span class="t">собрать свою тренировку</span>
           <span class="s">смешать несколько типов упражнений в одной сессии</span>
@@ -518,10 +554,11 @@ async function start() {
   color: var(--muted);
   text-align: left;
 }
-.type-tile .emoji {
-  font-size: 1.5rem;
-  line-height: 1;
+.type-tile .type-icon {
+  width: 1.5rem;
+  height: 1.5rem;
   margin-bottom: 0.1rem;
+  color: var(--hero-a);
 }
 .type-tile .t {
   font-size: 0.92rem;
@@ -543,6 +580,9 @@ async function start() {
   color: var(--hero-ink);
   opacity: 0.66;
 }
+.type-tile.on .type-icon {
+  color: var(--hero-ink);
+}
 
 .assembly-cta {
   display: flex;
@@ -558,8 +598,9 @@ async function start() {
 }
 .assembly-cta .ico {
   flex: none;
-  font-size: 1.4rem;
-  line-height: 1;
+  width: 1.4rem;
+  height: 1.4rem;
+  color: var(--hero-a);
 }
 .assembly-cta .txt {
   flex: 1 1 auto;
