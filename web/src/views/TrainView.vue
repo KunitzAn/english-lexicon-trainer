@@ -23,13 +23,13 @@ import type {
 
 const MAX_ROUNDS = 20
 
-const TYPE_META: { type: ExerciseType; label: string; hint: string }[] = [
-  { type: 'match', label: 'пары', hint: 'сопоставить слово и перевод' },
-  { type: 'choice', label: 'выбор перевода', hint: 'выбрать перевод из вариантов' },
-  { type: 'gap', label: '1 пропуск', hint: 'вставить слово в предложение · ИИ' },
-  { type: 'multigap', label: 'мульти-пропуск', hint: 'несколько пропусков в тексте · ИИ' },
-  { type: 'clickable', label: 'что значит слово', hint: 'перевод выделенного слова в тексте · ИИ' },
-  { type: 'typed', label: 'ввод перевода', hint: 'вписать перевод вручную' },
+const TYPE_META: { type: ExerciseType; emoji: string; label: string; hint: string }[] = [
+  { type: 'match', emoji: '🧩', label: 'пары', hint: 'сопоставить слово и перевод' },
+  { type: 'choice', emoji: '🎯', label: 'выбор перевода', hint: 'выбрать перевод из вариантов' },
+  { type: 'gap', emoji: '✏️', label: '1 пропуск', hint: 'вставить слово в предложение · ИИ' },
+  { type: 'multigap', emoji: '📝', label: 'мульти-пропуск', hint: 'несколько пропусков в тексте · ИИ' },
+  { type: 'clickable', emoji: '👆', label: 'что значит слово', hint: 'перевод выделенного слова в тексте · ИИ' },
+  { type: 'typed', emoji: '⌨️', label: 'ввод перевода', hint: 'вписать перевод вручную' },
 ]
 const labelOf = (t: ExerciseType) => TYPE_META.find((m) => m.type === t)?.label ?? t
 
@@ -287,19 +287,8 @@ async function start() {
       </div>
     </div>
 
-    <div class="label">тренировка</div>
-    <div class="seg two">
-      <button :class="{ on: selectMode === 'single' }" @click="selectMode = 'single'">
-        <span class="disp t">один тип</span>
-        <span class="s">одно упражнение</span>
-      </button>
-      <button :class="{ on: selectMode === 'assembly' }" @click="selectMode = 'assembly'">
-        <span class="disp t">сборка</span>
-        <span class="s">несколько типов</span>
-      </button>
-    </div>
-
     <template v-if="selectMode === 'single'">
+      <div class="label">тип упражнения</div>
       <div class="type-grid">
         <button
           v-for="m in TYPE_META"
@@ -308,6 +297,7 @@ async function start() {
           :class="{ on: singleType === m.type }"
           @click="singleType = m.type"
         >
+          <span class="emoji">{{ m.emoji }}</span>
           <span class="disp t">{{ m.label }}</span>
           <span class="s">{{ m.hint }}</span>
         </button>
@@ -323,9 +313,30 @@ async function start() {
         </div>
         <input type="range" min="1" :max="singleMaxRounds" step="1" v-model.number="singleRounds" />
       </div>
+
+      <button class="assembly-cta" @click="selectMode = 'assembly'">
+        <span class="ico">🛠️</span>
+        <span class="txt">
+          <span class="t">собрать свою тренировку</span>
+          <span class="s">смешать несколько типов упражнений в одной сессии</span>
+        </span>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M9 6l6 6-6 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
     </template>
 
     <template v-else>
+      <button class="ghost back-to-single" @click="selectMode = 'single'">
+        ← обычные упражнения
+      </button>
       <div class="blocks">
         <div v-for="(b, i) in blocks" :key="i" class="block-card">
           <div class="block-head">
@@ -498,12 +509,19 @@ async function start() {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.15rem;
-  padding: 0.8rem 0.75rem;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 6.4rem;
+  padding: 1.1rem 0.9rem;
   background: var(--card);
   border-radius: var(--r-lg);
   color: var(--muted);
   text-align: left;
+}
+.type-tile .emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+  margin-bottom: 0.1rem;
 }
 .type-tile .t {
   font-size: 0.92rem;
@@ -524,6 +542,53 @@ async function start() {
 .type-tile.on .s {
   color: var(--hero-ink);
   opacity: 0.66;
+}
+
+.assembly-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  background: var(--card);
+  border: 1.5px dashed var(--hero-a);
+  border-radius: var(--r-lg);
+  text-align: left;
+}
+.assembly-cta .ico {
+  flex: none;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.assembly-cta .txt {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.assembly-cta .txt .t {
+  font-family: var(--font-disp);
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--hero-a);
+  text-transform: lowercase;
+}
+.assembly-cta .txt .s {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: none;
+  line-height: 1.25;
+}
+.assembly-cta svg {
+  flex: none;
+  color: var(--hero-a);
+}
+
+.back-to-single {
+  margin: 0.2rem 0 0.8rem;
 }
 
 .count-box {
